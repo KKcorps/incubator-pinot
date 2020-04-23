@@ -19,6 +19,7 @@
 package org.apache.pinot.plugin.filesystem;
 
 import com.adobe.testing.s3mock.testng.S3Mock;
+import com.adobe.testing.s3mock.testsupport.common.S3MockStarter;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
@@ -28,8 +29,12 @@ import java.util.Arrays;
 import java.util.List;
 import org.apache.commons.io.IOUtils;
 import org.testng.Assert;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Listeners;
+import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -40,23 +45,26 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 
 @Test
-@Listeners(com.adobe.testing.s3mock.testng.S3MockListener.class)
 public class S3PinotFSTest {
   final String DELIMITER = "/";
   S3PinotFS _s3PinotFS;
   S3Client _s3Client;
+  PinotS3Mock _s3Mock;
   final String BUCKET = "test-bucket";
   final String SCHEME = "s3";
   final String FILE_FORMAT = "%s://%s/%s";
   final String DIR_FORMAT = "%s://%s";
+  final Integer HTTP_PORT = 9452;
+  final Integer HTTPS_PORT = 9453;
 
-  @BeforeMethod
+  @BeforeClass
   public void setUp() {
-    S3Mock s3Mock = S3Mock.getInstance();
-    _s3Client = s3Mock.createS3ClientV2();
+    _s3Mock = new PinotS3Mock.PinotS3MockBuilder().withHttpPort(HTTP_PORT).withHttpsPort(HTTPS_PORT)
+        .withInitialBuckets(BUCKET).build();
+    _s3Mock.bootstrap();
+    _s3Client = _s3Mock.createS3ClientV2();
     _s3PinotFS = new S3PinotFS();
     _s3PinotFS.init(_s3Client);
-    _s3Client.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
   }
 
   private void createEmptyFile(String folderName, String fileName) {
@@ -303,5 +311,10 @@ public class S3PinotFSTest {
 
     HeadObjectResponse headObjectResponse = _s3Client.headObject(S3TestUtils.getHeadObjectRequest(BUCKET, folderName));
     Assert.assertTrue(headObjectResponse.sdkHttpResponse().isSuccessful());
+  }
+
+  @AfterClass
+  public void tearDown() {
+    _s3Mock.terminate();
   }
 }

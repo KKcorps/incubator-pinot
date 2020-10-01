@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.I0Itec.zkclient.exception.ZkBadVersionException;
 import org.apache.helix.AccessOption;
@@ -475,5 +476,10 @@ public class HelixHelper {
    */
   public static Set<String> getBrokerInstancesForTenant(List<InstanceConfig> instanceConfigs, String tenant) {
     return new HashSet<>(HelixHelper.getInstancesWithTag(instanceConfigs, TagNameUtils.getBrokerTagForTenant(tenant)));
+  }
+
+  public static List<InstanceConfig> getBrokerInstancesConfigForTenant(List<InstanceConfig> instanceConfigs, String tenant) {
+    List<String> brokerInstanceNames = HelixHelper.getInstancesWithTag(instanceConfigs, TagNameUtils.getBrokerTagForTenant(tenant));
+    return instanceConfigs.stream().filter(x -> brokerInstanceNames.contains(x.getInstanceName())).collect(Collectors.toList());
   }
 }

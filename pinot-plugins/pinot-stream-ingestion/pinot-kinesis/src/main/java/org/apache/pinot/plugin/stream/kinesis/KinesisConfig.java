@@ -34,8 +34,8 @@ public class KinesisConfig {
   public static final String ACCESS_KEY = "accessKey";
   public static final String SECRET_KEY = "secretKey";
   public static final String MAX_RECORDS_TO_FETCH = "maxRecordsToFetch";
-  // TODO: this is a starting point, until a better default is figured out
-  public static final String DEFAULT_MAX_RECORDS = "20";
+
+  public static final String DEFAULT_MAX_RECORDS = String.valueOf(Integer.MAX_VALUE);
   public static final String DEFAULT_SHARD_ITERATOR_TYPE = ShardIteratorType.LATEST.toString();
 
   private final String _streamTopicName;

@@ -27,15 +27,18 @@ import cloud.localstack.docker.command.Command;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.google.common.base.Function;
+import com.google.common.base.Joiner;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +47,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import javax.activation.UnsupportedDataTypeException;
 import javax.annotation.Nullable;
 import org.apache.commons.io.FileUtils;
@@ -78,13 +83,17 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kinesis.KinesisClient;
 import software.amazon.awssdk.services.kinesis.model.CreateStreamRequest;
 import software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest;
+import software.amazon.awssdk.services.kinesis.model.InvalidArgumentException;
 import software.amazon.awssdk.services.kinesis.model.PutRecordRequest;
 import software.amazon.awssdk.services.kinesis.model.PutRecordResponse;
+import software.amazon.awssdk.services.kinesis.model.Shard;
 import software.amazon.awssdk.services.kinesis.model.ShardIteratorType;
+import software.amazon.awssdk.services.kinesis.model.SplitShardRequest;
+import software.amazon.awssdk.services.kinesis.model.SplitShardResponse;
 import software.amazon.awssdk.utils.AttributeMap;
 
 
-@LocalstackDockerProperties(services = {ServiceName.KINESIS}, imageTag = "0.12.15")
+@LocalstackDockerProperties(services = {ServiceName.KINESIS}, imageTag = "0.12.15", environmentVariableProvider = LocalstackEnvironmentVariableProvider.class)
 public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSet {
   private static final Logger LOGGER = LoggerFactory.getLogger(RealtimeKinesisIntegrationTest.class);
 
@@ -112,7 +121,7 @@ public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSe
 
   private boolean _skipTestNoDockerInstalled = false;
 
-  @BeforeClass(enabled = false)
+  @BeforeClass(enabled = true)
   public void setUp()
       throws Exception {
     try {
@@ -210,7 +219,7 @@ public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSe
     streamConfigMap.put(KinesisConfig.ENDPOINT, LOCALSTACK_KINESIS_ENDPOINT);
     streamConfigMap.put(KinesisConfig.ACCESS_KEY, getLocalAWSCredentials().resolveCredentials().accessKeyId());
     streamConfigMap.put(KinesisConfig.SECRET_KEY, getLocalAWSCredentials().resolveCredentials().secretAccessKey());
-    streamConfigMap.put(StreamConfigProperties.SEGMENT_FLUSH_THRESHOLD_ROWS, Integer.toString(200));
+    streamConfigMap.put(StreamConfigProperties.SEGMENT_FLUSH_THRESHOLD_ROWS, Integer.toString(9));
     streamConfigMap.put(StreamConfigProperties.constructStreamProperty(streamType,
         StreamConfigProperties.STREAM_CONSUMER_OFFSET_CRITERIA), "smallest");
     return streamConfigMap;
@@ -266,7 +275,7 @@ public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSe
 
       InputStream inputStream =
           RealtimeKinesisIntegrationTest.class.getClassLoader().getResourceAsStream(DATA_FILE_PATH);
-
+      Map<String, Integer> partitionRecordCounts = new TreeMap<>();
       try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
         String line;
         while ((line = br.readLine()) != null) {
@@ -275,36 +284,49 @@ public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSe
           PutRecordRequest putRecordRequest =
               PutRecordRequest.builder().streamName(STREAM_NAME).data(SdkBytes.fromUtf8String(line))
                   .partitionKey(data.get("Origin").textValue()).build();
-          PutRecordResponse putRecordResponse = _kinesisClient.putRecord(putRecordRequest);
-          if (putRecordResponse.sdkHttpResponse().statusCode() == 200) {
-            if (StringUtils.isNotBlank(putRecordResponse.sequenceNumber()) && StringUtils.isNotBlank(
-                putRecordResponse.shardId())) {
-              _totalRecordsPushedInStream++;
 
-              int fieldIndex = 1;
-              for (String fieldNameAndDatatype : _h2FieldNameAndTypes) {
-                String[] fieldNameAndDatatypeList = fieldNameAndDatatype.split(" ");
-                String fieldName = fieldNameAndDatatypeList[0];
-                String h2DataType = fieldNameAndDatatypeList[1];
-                switch (h2DataType) {
-                  case "int": {
-                    h2Statement.setObject(fieldIndex++, data.get(fieldName).intValue());
-                    break;
+          int tries = 0;
+          int maxTries = 3;
+          while(tries < maxTries) {
+            try {
+              PutRecordResponse putRecordResponse = _kinesisClient.putRecord(putRecordRequest);
+              if (putRecordResponse.sdkHttpResponse().statusCode() == 200) {
+                if (StringUtils.isNotBlank(putRecordResponse.sequenceNumber()) && StringUtils.isNotBlank(
+                    putRecordResponse.shardId())) {
+                  partitionRecordCounts.put(putRecordResponse.shardId(), partitionRecordCounts.getOrDefault(putRecordResponse.shardId(), 0) + 1);
+
+                  _totalRecordsPushedInStream++;
+
+                  int fieldIndex = 1;
+                  for (String fieldNameAndDatatype : _h2FieldNameAndTypes) {
+                    String[] fieldNameAndDatatypeList = fieldNameAndDatatype.split(" ");
+                    String fieldName = fieldNameAndDatatypeList[0];
+                    String h2DataType = fieldNameAndDatatypeList[1];
+                    switch (h2DataType) {
+                      case "int": {
+                        h2Statement.setObject(fieldIndex++, data.get(fieldName).intValue());
+                        break;
+                      }
+                      case "varchar(128)": {
+                        h2Statement.setObject(fieldIndex++, data.get(fieldName).textValue());
+                        break;
+                      }
+                      default:
+                        break;
+                    }
                   }
-                  case "varchar(128)": {
-                    h2Statement.setObject(fieldIndex++, data.get(fieldName).textValue());
-                    break;
-                  }
-                  default:
-                    break;
+                  h2Statement.execute();
                 }
+                break;
               }
-              h2Statement.execute();
+              tries++;
+            } catch (InvalidArgumentException ie) {
+              tries++;
             }
           }
         }
       }
-
+      LOGGER.warn("Number of Records pushed in all shards - " + JsonUtils.objectToPrettyString(partitionRecordCounts));
       inputStream.close();
     } catch (Exception e) {
       throw new RuntimeException("Could not publish records to Kinesis Stream", e);
@@ -315,11 +337,24 @@ public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSe
     return StaticCredentialsProvider.create(AwsBasicCredentials.create("access", "secret"));
   }
 
-  @Test(enabled = false)
+  @Test(enabled = true)
   public void testRecords()
       throws Exception {
     Assert.assertNotEquals(_totalRecordsPushedInStream, 0);
 
+    verifyPinotTableData();
+
+    splitShards();
+
+    publishRecordsToKinesis();
+
+    waitForAllDocsLoadedKinesis(120_000L);
+
+    verifyPinotTableData();
+  }
+
+  private void verifyPinotTableData()
+      throws SQLException {
     ResultSet pinotResultSet = getPinotConnection().execute(
         new Request("sql", "SELECT * FROM " + getTableName() + " ORDER BY Origin LIMIT 10000")).getResultSet(0);
 
@@ -376,7 +411,7 @@ public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSe
     }
   }
 
-  @Test(enabled = false)
+  @Test(enabled = true)
   public void testCountRecords() {
     long count =
         getPinotConnection().execute(new Request("sql", "SELECT COUNT(*) FROM " + getTableName())).getResultSet(0)
@@ -442,7 +477,44 @@ public class RealtimeKinesisIntegrationTest extends BaseClusterIntegrationTestSe
         _h2FieldNameAndTypes.toArray(new String[_h2FieldNameAndTypes.size()])) + ")").execute();
   }
 
-  @AfterClass(enabled = false)
+  public void splitShards() throws Exception{
+    List<Shard> shards = _kinesisClient.describeStream(DescribeStreamRequest.builder().streamName(STREAM_NAME).build()).streamDescription().shards();
+    LOGGER.warn("Current shardIDs are: " + Joiner.on(",").join(shards.stream().map(Shard::shardId).sorted().collect(
+        Collectors.toList())));
+
+    Shard shardToSplit = shards.get(5);
+    LOGGER.warn("Splitting up Shard with ID: " + shardToSplit.shardId());
+    BigInteger startingHashKey = new BigInteger(shardToSplit.hashKeyRange().startingHashKey());
+    BigInteger endingHashKey   = new BigInteger(shardToSplit.hashKeyRange().endingHashKey());
+    String newStartingHashKey  = startingHashKey.add(endingHashKey).divide(new BigInteger("2")).toString();
+
+    SplitShardResponse splitShardResponse = _kinesisClient.splitShard(SplitShardRequest.builder().shardToSplit(shardToSplit.shardId()).streamName(STREAM_NAME).newStartingHashKey(newStartingHashKey).build());
+
+    TestUtils.waitForCondition(new Function<Void, Boolean>() {
+      @Nullable
+      @Override
+      public Boolean apply(@Nullable Void aVoid) {
+        try {
+          String kinesisStreamStatus =
+              _kinesisClient.describeStream(DescribeStreamRequest.builder().streamName(STREAM_NAME).build())
+                  .streamDescription().streamStatusAsString();
+
+          LOGGER.warn("Current Stream Status: " + kinesisStreamStatus);
+          return kinesisStreamStatus.contentEquals("ACTIVE");
+        } catch (Exception e) {
+          LOGGER.warn("Could not fetch kinesis stream status");
+          return null;
+        }
+      }
+    }, 1000L, 30000, "Kinesis stream " + STREAM_NAME + " is not created or is not in active state", true);
+
+    shards = _kinesisClient.describeStream(DescribeStreamRequest.builder().streamName(STREAM_NAME).build()).streamDescription().shards();
+
+    LOGGER.warn("Shard successfully splitted. New shardIDs are: " + Joiner.on(",").join(shards.stream().map(Shard::shardId).sorted().collect(
+        Collectors.toList())));
+  }
+
+  @AfterClass(enabled = true)
   public void tearDown()
       throws Exception {
     if (_skipTestNoDockerInstalled) {

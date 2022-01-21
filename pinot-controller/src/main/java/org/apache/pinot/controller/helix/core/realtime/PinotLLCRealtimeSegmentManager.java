@@ -622,7 +622,7 @@ public class PinotLLCRealtimeSegmentManager {
       if (!latestSegmentZKMetadataMap.containsKey(partitionGroupId)) {
         String newSegmentName =
             setupNewPartitionGroup(tableConfig, streamConfig, partitionGroupMetadata, getCurrentTimeMs(),
-                instancePartitions, numPartitionGroups, numReplicas, newPartitionGroupMetadataList, true);
+                instancePartitions, numPartitionGroups, numReplicas, newPartitionGroupMetadataList);
         try {
           updateInstanceStatesForNewConsumingSegment(instanceStatesMap, null, newSegmentName, segmentAssignment,
               instancePartitionsMap);

@@ -56,7 +56,7 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
   public double[] transformToDoubleValuesSV(ProjectionBlock projectionBlock) {
     int length = projectionBlock.getNumDocs();
 
-    if (_doubleValuesSV == null) {
+    if (_doubleValuesSV == null || _doubleValuesMV.length < length) {
       _doubleValuesSV = new double[length];
     }
 

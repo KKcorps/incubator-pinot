@@ -33,7 +33,6 @@ import org.apache.pinot.segment.spi.datasource.DataSource;
  */
 public abstract class SingleParamMathTransformFunction extends BaseTransformFunction {
   private TransformFunction _transformFunction;
-  protected double[] _results;
 
   @Override
   public void init(List<TransformFunction> arguments, Map<String, DataSource> dataSourceMap) {
@@ -55,13 +54,15 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
 
   @Override
   public double[] transformToDoubleValuesSV(ProjectionBlock projectionBlock) {
-    if (_results == null) {
-      _results = new double[DocIdSetPlanNode.MAX_DOC_PER_CALL];
+    int length = projectionBlock.getNumDocs();
+
+    if (_doubleValuesSV == null) {
+      _doubleValuesSV = new double[length];
     }
 
     double[] values = _transformFunction.transformToDoubleValuesSV(projectionBlock);
     applyMathOperator(values, projectionBlock.getNumDocs());
-    return _results;
+    return _doubleValuesSV;
   }
 
   abstract protected void applyMathOperator(double[] values, int length);
@@ -77,7 +78,7 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
     @Override
     protected void applyMathOperator(double[] values, int length) {
       for (int i = 0; i < length; i++) {
-        _results[i] = Math.abs(values[i]);
+        _doubleValuesSV[i] = Math.abs(values[i]);
       }
     }
   }
@@ -93,7 +94,7 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
     @Override
     protected void applyMathOperator(double[] values, int length) {
       for (int i = 0; i < length; i++) {
-        _results[i] = Math.ceil(values[i]);
+        _doubleValuesSV[i] = Math.ceil(values[i]);
       }
     }
   }
@@ -109,7 +110,7 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
     @Override
     protected void applyMathOperator(double[] values, int length) {
       for (int i = 0; i < length; i++) {
-        _results[i] = Math.exp(values[i]);
+        _doubleValuesSV[i] = Math.exp(values[i]);
       }
     }
   }
@@ -125,7 +126,7 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
     @Override
     protected void applyMathOperator(double[] values, int length) {
       for (int i = 0; i < length; i++) {
-        _results[i] = Math.floor(values[i]);
+        _doubleValuesSV[i] = Math.floor(values[i]);
       }
     }
   }
@@ -141,7 +142,7 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
     @Override
     protected void applyMathOperator(double[] values, int length) {
       for (int i = 0; i < length; i++) {
-        _results[i] = Math.log(values[i]);
+        _doubleValuesSV[i] = Math.log(values[i]);
       }
     }
   }
@@ -157,7 +158,7 @@ public abstract class SingleParamMathTransformFunction extends BaseTransformFunc
     @Override
     protected void applyMathOperator(double[] values, int length) {
       for (int i = 0; i < length; i++) {
-        _results[i] = Math.sqrt(values[i]);
+        _doubleValuesSV[i] = Math.sqrt(values[i]);
       }
     }
   }

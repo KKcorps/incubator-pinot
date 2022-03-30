@@ -27,6 +27,7 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -42,6 +43,8 @@ import javax.ws.rs.core.Response;
 import org.apache.pinot.broker.api.HttpRequesterIdentity;
 import org.apache.pinot.broker.api.RequestStatistics;
 import org.apache.pinot.broker.requesthandler.BrokerRequestHandler;
+import org.apache.pinot.broker.response.ResponseWriter;
+import org.apache.pinot.broker.response.ResponseWriterFactory;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
 import org.apache.pinot.common.response.BrokerResponse;
@@ -136,7 +139,7 @@ public class PinotClientRequest {
 
   @GET
   @ManagedAsync
-  @Produces(MediaType.APPLICATION_JSON)
+  @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_OCTET_STREAM})
   @Path("query/sql")
   @ApiOperation(value = "Querying pinot using sql")
   @ApiResponses(value = {
@@ -160,7 +163,9 @@ public class PinotClientRequest {
       }
       BrokerResponse brokerResponse =
           _requestHandler.handleRequest(requestJson, makeHttpIdentity(requestContext), new RequestStatistics());
-      asyncResponse.resume(brokerResponse.toJsonString());
+      String format = Optional.ofNullable(requestContext.getHeader("format")).orElse("json").toString();
+      ResponseWriter responseWriter = ResponseWriterFactory.getResponseWriterForFormat(format);
+      asyncResponse.resume(responseWriter.formatBrokerResponse(brokerResponse));
     } catch (Exception e) {
       LOGGER.error("Caught exception while processing GET request", e);
       _brokerMetrics.addMeteredGlobalValue(BrokerMeter.UNCAUGHT_GET_EXCEPTIONS, 1L);
@@ -170,7 +175,7 @@ public class PinotClientRequest {
 
   @POST
   @ManagedAsync
-  @Produces(MediaType.APPLICATION_JSON)
+  @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_OCTET_STREAM})
   @Path("query/sql")
   @ApiOperation(value = "Querying pinot using sql")
   @ApiResponses(value = {
@@ -189,7 +194,10 @@ public class PinotClientRequest {
       ObjectNode sqlRequestJson = ((ObjectNode) requestJson).put(Request.QUERY_OPTIONS, queryOptions);
       BrokerResponse brokerResponse =
           _requestHandler.handleRequest(sqlRequestJson, makeHttpIdentity(requestContext), new RequestStatistics());
-      asyncResponse.resume(brokerResponse.toJsonString());
+      String format = Optional.ofNullable(requestContext.getHeader("format")).orElse("json").toString();
+      ResponseWriter responseWriter = ResponseWriterFactory.getResponseWriterForFormat(format);
+      asyncResponse.resume(responseWriter.formatBrokerResponse(brokerResponse));
+//      asyncResponse.resume(brokerResponse.toJsonString());
     } catch (Exception e) {
       LOGGER.error("Caught exception while processing POST request", e);
       _brokerMetrics.addMeteredGlobalValue(BrokerMeter.UNCAUGHT_POST_EXCEPTIONS, 1L);

@@ -19,6 +19,8 @@
 package org.apache.pinot.segment.local.upsert;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.pinot.common.metrics.ServerMetrics;
@@ -27,13 +29,17 @@ import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentImp
 import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.config.table.UpsertConfig;
+import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.apache.pinot.spi.utils.BytesUtils;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
+import org.mockito.ArgumentMatchers;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
@@ -55,7 +61,8 @@ public class PartitionUpsertMetadataManagerTest {
 
   private void verifyAddSegment(UpsertConfig.HashFunction hashFunction) {
     PartitionUpsertMetadataManager upsertMetadataManager =
-        new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, mock(ServerMetrics.class), null, hashFunction);
+        new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, mock(ServerMetrics.class), null, hashFunction,
+            Collections.emptyList());
     Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
 
     // Add the first segment
@@ -130,7 +137,26 @@ public class PartitionUpsertMetadataManagerTest {
     String segmentName = getSegmentName(sequenceNumber);
     when(segment.getSegmentName()).thenReturn(segmentName);
     when(segment.getValidDocIds()).thenReturn(validDocIds);
+    when(segment.getRecord(anyInt(), ArgumentMatchers.any(GenericRow.class))).thenReturn(new GenericRow());
     return segment;
+  }
+
+  private static ImmutableSegmentImpl mockSegment(int sequenceNumber, ThreadSafeMutableRoaringBitmap validDocIds,
+      List<PrimaryKey> primaryKeys) {
+    ImmutableSegmentImpl segment = mock(ImmutableSegmentImpl.class);
+
+    String segmentName = getSegmentName(sequenceNumber);
+    when(segment.getSegmentName()).thenReturn(segmentName);
+    when(segment.getValidDocIds()).thenReturn(validDocIds);
+    when(segment.getRecord(anyInt(), ArgumentMatchers.any(GenericRow.class))).thenAnswer(
+        i -> mockRecord(primaryKeys.get(i.getArgument(0, Integer.class))));
+    return segment;
+  }
+
+  private static GenericRow mockRecord(PrimaryKey primaryKey) {
+    GenericRow record = mock(GenericRow.class);
+    when(record.getPrimaryKey(anyList())).thenReturn(primaryKey);
+    return record;
   }
 
   private static String getSegmentName(int sequenceNumber) {
@@ -160,7 +186,8 @@ public class PartitionUpsertMetadataManagerTest {
 
   private void verifyAddRecord(UpsertConfig.HashFunction hashFunction) {
     PartitionUpsertMetadataManager upsertMetadataManager =
-        new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, mock(ServerMetrics.class), null, hashFunction);
+        new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, mock(ServerMetrics.class), null, hashFunction,
+            Collections.emptyList());
     Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
 
     // Add the first segment
@@ -231,7 +258,8 @@ public class PartitionUpsertMetadataManagerTest {
 
   private void verifyRemoveSegment(UpsertConfig.HashFunction hashFunction) {
     PartitionUpsertMetadataManager upsertMetadataManager =
-        new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, mock(ServerMetrics.class), null, hashFunction);
+        new PartitionUpsertMetadataManager(REALTIME_TABLE_NAME, 0, mock(ServerMetrics.class), null, hashFunction,
+            Collections.singletonList("primaryKey"));
     Map<Object, RecordLocation> recordLocationMap = upsertMetadataManager._primaryKeyToRecordLocationMap;
 
     // Add 2 segments
@@ -241,13 +269,13 @@ public class PartitionUpsertMetadataManagerTest {
     recordInfoList1.add(new PartitionUpsertMetadataManager.RecordInfo(getPrimaryKey(0), 0, new IntWrapper(100)));
     recordInfoList1.add(new PartitionUpsertMetadataManager.RecordInfo(getPrimaryKey(1), 1, new IntWrapper(100)));
     ThreadSafeMutableRoaringBitmap validDocIds1 = new ThreadSafeMutableRoaringBitmap();
-    ImmutableSegmentImpl segment1 = mockSegment(1, validDocIds1);
+    ImmutableSegmentImpl segment1 = mockSegment(1, validDocIds1, Arrays.asList(getPrimaryKey(0), getPrimaryKey(1)));
     upsertMetadataManager.addSegment(segment1, recordInfoList1.iterator());
     List<PartitionUpsertMetadataManager.RecordInfo> recordInfoList2 = new ArrayList<>();
     recordInfoList2.add(new PartitionUpsertMetadataManager.RecordInfo(getPrimaryKey(2), 0, new IntWrapper(100)));
     recordInfoList2.add(new PartitionUpsertMetadataManager.RecordInfo(getPrimaryKey(3), 1, new IntWrapper(100)));
     ThreadSafeMutableRoaringBitmap validDocIds2 = new ThreadSafeMutableRoaringBitmap();
-    ImmutableSegmentImpl segment2 = mockSegment(2, validDocIds2);
+    ImmutableSegmentImpl segment2 = mockSegment(2, validDocIds2, Arrays.asList(getPrimaryKey(2), getPrimaryKey(3)));
     upsertMetadataManager.addSegment(segment2, recordInfoList2.iterator());
 
     // Remove the first segment
@@ -264,18 +292,22 @@ public class PartitionUpsertMetadataManagerTest {
   public void testHashPrimaryKey() {
     PrimaryKey pk = new PrimaryKey(new Object[]{"uuid-1", "uuid-2", "uuid-3"});
     Assert.assertEquals(BytesUtils.toHexString(
-        ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MD5)).getBytes()),
+            ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MD5))
+                .getBytes()),
         "58de44997505014e02982846a4d1cbbd");
     Assert.assertEquals(BytesUtils.toHexString(
-        ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MURMUR3)).getBytes()),
+            ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MURMUR3))
+                .getBytes()),
         "7e6b4a98296292a4012225fff037fa8c");
     // reorder
     pk = new PrimaryKey(new Object[]{"uuid-3", "uuid-2", "uuid-1"});
     Assert.assertEquals(BytesUtils.toHexString(
-        ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MD5)).getBytes()),
+            ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MD5))
+                .getBytes()),
         "d2df12c6dea7b83f965613614eee58e2");
     Assert.assertEquals(BytesUtils.toHexString(
-        ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MURMUR3)).getBytes()),
+            ((ByteArray) PartitionUpsertMetadataManager.hashPrimaryKey(pk, UpsertConfig.HashFunction.MURMUR3))
+                .getBytes()),
         "8d68b314cc0c8de4dbd55f4dad3c3e66");
   }
 

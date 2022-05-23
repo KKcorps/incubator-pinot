@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.apache.pinot.segment.local.upsert.RecordLocation;
 import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
@@ -26,6 +27,7 @@ import org.openjdk.jmh.runner.options.ChainedOptionsBuilder;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.openjdk.jmh.runner.options.TimeValue;
 import org.roaringbitmap.PeekableIntIterator;
+import org.roaringbitmap.buffer.MutableRoaringBitmap;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -45,27 +47,37 @@ public class BenchmarkUpsert {
   public static final int SEED = 42;
 
   public class MockSegment {
-    int[] validDocIds;
-    String[] primaryKey;
-    Map<Integer, Integer> docIdToIndex = new HashMap<>();
+    MutableRoaringBitmap _validDocIds;
+    String[] _primaryKey;
+    Map<Integer, Integer> _docIdToIndex = new HashMap<>();
 
-    public int[] getValidDocIds() {
-      return validDocIds;
+    public MutableRoaringBitmap getValidDocIds() {
+      return _validDocIds;
     }
 
     public void setValidDocIds(int[] validDocIds) {
-      this.validDocIds = validDocIds;
+      ThreadSafeMutableRoaringBitmap mutableRoaringBitmap = new ThreadSafeMutableRoaringBitmap();
       for(int i=0;i<validDocIds.length;i++) {
-        docIdToIndex.put(validDocIds[i], i);
+        mutableRoaringBitmap.add(validDocIds[i]);
+        _docIdToIndex.put(validDocIds[i], i);
       }
+      _validDocIds = mutableRoaringBitmap.getMutableRoaringBitmap();
     }
 
     public String getPrimaryKey(int docId) {
-      return primaryKey[docIdToIndex.get(docId)];
+      return _primaryKey[_docIdToIndex.get(docId)];
+    }
+
+    public String[] getAllPrimaryKeys() {
+      return _primaryKey;
     }
 
     public void setPrimaryKey(String[] primaryKey) {
-      this.primaryKey = primaryKey;
+      this._primaryKey = primaryKey;
+    }
+
+    public Integer getIndexForDocId(int docId){
+      return _docIdToIndex.get(docId);
     }
   }
 
@@ -95,7 +107,6 @@ public class BenchmarkUpsert {
   }
 
   final ConcurrentHashMap<Object, MockRecordLocation> _primaryKeyToRecordLocationMap = new ConcurrentHashMap<>();
-  final ConcurrentHashMap<Object, MockRecordLocation> _primaryKeyToRecordLocationMapNew = new ConcurrentHashMap<>();
 
   final List<MockSegment> _segmentList = new ArrayList<>();
 
@@ -103,7 +114,6 @@ public class BenchmarkUpsert {
   public void setUp() {
     _segmentList.clear();
     _primaryKeyToRecordLocationMap.clear();
-    _primaryKeyToRecordLocationMapNew.clear();
     Random random = new Random(SEED);
 
     int numDocsPerSegment = DOC_COUNT / NUM_SEGMENTS;
@@ -122,10 +132,10 @@ public class BenchmarkUpsert {
       }
 
       for(MockSegment mockSegment: _segmentList) {
-        int n = mockSegment.getValidDocIds().length;
-        for(int i=0;i<n;i++) {
-          _primaryKeyToRecordLocationMap.put(mockSegment.getPrimaryKey(mockSegment.getValidDocIds()[i]), new MockRecordLocation(mockSegment, mockSegment.getValidDocIds()[i], i));
-          _primaryKeyToRecordLocationMapNew.put(mockSegment.getPrimaryKey(mockSegment.getValidDocIds()[i]), new MockRecordLocation(mockSegment, mockSegment.getValidDocIds()[i], i));
+        PeekableIntIterator peekableIntIterator = mockSegment.getValidDocIds().getIntIterator();
+        while(peekableIntIterator.hasNext()) {
+          int docId = peekableIntIterator.next();
+          _primaryKeyToRecordLocationMap.put(mockSegment.getPrimaryKey(docId), new MockRecordLocation(mockSegment, docId, System.currentTimeMillis()));
         }
       }
   }
@@ -176,11 +186,11 @@ public class BenchmarkUpsert {
 
 
   public boolean removeSegmentNew(MockSegment segment) {
-    Iterator<Integer> iterator = Arrays.stream(segment.getValidDocIds()).iterator();
+    Iterator<Integer> iterator = segment.getValidDocIds().iterator();
     while (iterator.hasNext()) {
       int docId = iterator.next();
       String primaryKey = segment.getPrimaryKey(docId);
-      _primaryKeyToRecordLocationMapNew.computeIfPresent(primaryKey, (pk, recordLocation) -> {
+      _primaryKeyToRecordLocationMap.computeIfPresent(primaryKey, (pk, recordLocation) -> {
         if (recordLocation.getSegment() == segment) {
           return null;
         }

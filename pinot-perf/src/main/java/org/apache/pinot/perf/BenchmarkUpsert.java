@@ -1,14 +1,22 @@
 package org.apache.pinot.perf;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.pinot.segment.local.upsert.RecordLocation;
 import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -17,6 +25,7 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.ChainedOptionsBuilder;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.openjdk.jmh.runner.options.TimeValue;
+import org.roaringbitmap.PeekableIntIterator;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -28,16 +37,17 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * The number of docs should be greater than primary keys
  */
 @State(Scope.Benchmark)
-@Fork(value = 1, jvmArgs = {"-server", "-Xmx8G", "-XX:MaxDirectMemorySize=16G"})
+@Fork(value = 1, jvmArgs = {"-server", "-Xmx4G", "-XX:MaxDirectMemorySize=8G"})
 public class BenchmarkUpsert {
   public static final int NUM_SEGMENTS = 1_000;
   private static final int KEY_COUNT = 1_000_000;
   private static final int DOC_COUNT = 5_000_000;
-  private static final Random RANDOM = new Random();
+  public static final int SEED = 42;
 
   public class MockSegment {
     int[] validDocIds;
     String[] primaryKey;
+    Map<Integer, Integer> docIdToIndex = new HashMap<>();
 
     public int[] getValidDocIds() {
       return validDocIds;
@@ -45,10 +55,13 @@ public class BenchmarkUpsert {
 
     public void setValidDocIds(int[] validDocIds) {
       this.validDocIds = validDocIds;
+      for(int i=0;i<validDocIds.length;i++) {
+        docIdToIndex.put(validDocIds[i], i);
+      }
     }
 
-    public String[] getPrimaryKey() {
-      return primaryKey;
+    public String getPrimaryKey(int docId) {
+      return primaryKey[docIdToIndex.get(docId)];
     }
 
     public void setPrimaryKey(String[] primaryKey) {
@@ -82,18 +95,25 @@ public class BenchmarkUpsert {
   }
 
   final ConcurrentHashMap<Object, MockRecordLocation> _primaryKeyToRecordLocationMap = new ConcurrentHashMap<>();
+  final ConcurrentHashMap<Object, MockRecordLocation> _primaryKeyToRecordLocationMapNew = new ConcurrentHashMap<>();
+
   final List<MockSegment> _segmentList = new ArrayList<>();
 
-  @Setup
+  @Setup(Level.Iteration)
   public void setUp() {
+    _segmentList.clear();
+    _primaryKeyToRecordLocationMap.clear();
+    _primaryKeyToRecordLocationMapNew.clear();
+    Random random = new Random(SEED);
+
     int numDocsPerSegment = DOC_COUNT / NUM_SEGMENTS;
       for(int i = 0; i < NUM_SEGMENTS; i++) {
         MockSegment mockSegment = new MockSegment();
         int[] validDocIds = new int[numDocsPerSegment];
         String[] primaryKeys = new String[numDocsPerSegment];
         for(int j =0;j<numDocsPerSegment;j++){
-            validDocIds[j] = RANDOM.nextInt(DOC_COUNT);
-            primaryKeys[j] = generateRandomString(RANDOM.nextInt(50) + 50);
+            validDocIds[j] = random.nextInt(DOC_COUNT);
+            primaryKeys[j] = generateRandomString(random.nextInt(50) + 50, random);
         }
 
         mockSegment.setPrimaryKey(primaryKeys);
@@ -102,22 +122,32 @@ public class BenchmarkUpsert {
       }
 
       for(MockSegment mockSegment: _segmentList) {
-        int n = mockSegment.getPrimaryKey().length;
+        int n = mockSegment.getValidDocIds().length;
         for(int i=0;i<n;i++) {
-          _primaryKeyToRecordLocationMap.put(mockSegment.getPrimaryKey()[i], new MockRecordLocation(mockSegment, mockSegment.getValidDocIds()[i], i));
+          _primaryKeyToRecordLocationMap.put(mockSegment.getPrimaryKey(mockSegment.getValidDocIds()[i]), new MockRecordLocation(mockSegment, mockSegment.getValidDocIds()[i], i));
+          _primaryKeyToRecordLocationMapNew.put(mockSegment.getPrimaryKey(mockSegment.getValidDocIds()[i]), new MockRecordLocation(mockSegment, mockSegment.getValidDocIds()[i], i));
         }
       }
   }
 
   @Benchmark
   public void benchmarkOldImpl(Blackhole blackhole) {
-
+      for(MockSegment segment: _segmentList) {
+        blackhole.consume(removeSegmentOld(segment));
+      }
   }
 
-  private String generateRandomString(int length) {
+  @Benchmark
+  public void benchmarkNewImpl(Blackhole blackhole) {
+    for(MockSegment segment: _segmentList) {
+      blackhole.consume(removeSegmentNew(segment));
+    }
+  }
+
+  private String generateRandomString(int length, Random random) {
     byte[] bytes = new byte[length];
     for (int i = 0; i < length; i++) {
-      bytes[i] = (byte) (RANDOM.nextInt(0x7F - 0x20) + 0x20);
+      bytes[i] = (byte) (random.nextInt(0x7F - 0x20) + 0x20);
     }
     return new String(bytes, UTF_8);
   }
@@ -125,9 +155,38 @@ public class BenchmarkUpsert {
   public static void main(String[] args)
       throws Exception {
     ChainedOptionsBuilder opt = new OptionsBuilder().include(BenchmarkUpsert.class.getSimpleName())
-        .warmupTime(TimeValue.seconds(10)).warmupIterations(2).measurementTime(TimeValue.seconds(30))
-        .measurementIterations(5).forks(1);
+        .warmupTime(TimeValue.seconds(5)).warmupIterations(1).measurementTime(TimeValue.seconds(10))
+        .mode(Mode.AverageTime)
+        .timeUnit(TimeUnit.MILLISECONDS)
+        .measurementIterations(3).forks(1);
 
     new Runner(opt.build()).run();
+  }
+
+
+  public boolean removeSegmentOld(MockSegment segment) {
+    _primaryKeyToRecordLocationMap.forEach((primaryKey, recordLocation) -> {
+      if (recordLocation.getSegment() == segment) {
+        // Check and remove to prevent removing the key that is just updated
+        _primaryKeyToRecordLocationMap.remove(primaryKey, recordLocation);
+      }
+    });
+    return true;
+  }
+
+
+  public boolean removeSegmentNew(MockSegment segment) {
+    Iterator<Integer> iterator = Arrays.stream(segment.getValidDocIds()).iterator();
+    while (iterator.hasNext()) {
+      int docId = iterator.next();
+      String primaryKey = segment.getPrimaryKey(docId);
+      _primaryKeyToRecordLocationMapNew.computeIfPresent(primaryKey, (pk, recordLocation) -> {
+        if (recordLocation.getSegment() == segment) {
+          return null;
+        }
+        return recordLocation;
+      });
+    }
+    return true;
   }
 }

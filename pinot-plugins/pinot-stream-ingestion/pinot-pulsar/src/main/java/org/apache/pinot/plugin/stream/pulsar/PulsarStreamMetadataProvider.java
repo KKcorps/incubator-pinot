@@ -91,7 +91,7 @@ public class PulsarStreamMetadataProvider extends PulsarPartitionLevelConnection
               .subscriptionName("Pinot_" + UUID.randomUUID()).subscribe();
 
       if (offsetCriteria.isLargest()) {
-        offset = consumer.getLastMessageId();
+        offset = MessageId.latest;
       } else if (offsetCriteria.isSmallest()) {
         offset = consumer.receive().getMessageId();
       } else {
@@ -142,11 +142,7 @@ public class PulsarStreamMetadataProvider extends PulsarPartitionLevelConnection
                 new PartitionGroupMetadata(p, new MessageIdStreamOffset(message.getMessageId())));
           } else {
             MessageId lastMessageId;
-            try {
-              lastMessageId = (MessageId) consumer.getLastMessageIdAsync().get(timeoutMillis, TimeUnit.MILLISECONDS);
-            } catch (TimeoutException t) {
               lastMessageId = MessageId.latest;
-            }
             newPartitionGroupMetadataList.add(
                 new PartitionGroupMetadata(p, new MessageIdStreamOffset(lastMessageId)));
           }

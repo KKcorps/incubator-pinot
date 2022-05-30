@@ -28,12 +28,15 @@ import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.client.impl.MessageIdImpl;
 import org.apache.pulsar.client.internal.DefaultImplementation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
  * A {@link MessageBatch} for collecting messages from pulsar topic
  */
 public class PulsarMessageBatch implements MessageBatch<byte[]> {
+  private static final Logger LOGGER = LoggerFactory.getLogger(PulsarMessageBatch.class);
 
   private List<Message<byte[]>> _messageList = new ArrayList<>();
 
@@ -75,30 +78,35 @@ public class PulsarMessageBatch implements MessageBatch<byte[]> {
    */
   @Override
   public StreamPartitionMsgOffset getNextStreamPartitionMsgOffsetAtIndex(int index) {
-    MessageIdImpl currentMessageId = MessageIdImpl.convertToMessageIdImpl(_messageList.get(index).getMessageId());
-    MessageId nextMessageId;
+//    MessageIdImpl currentMessageId = MessageIdImpl.convertToMessageIdImpl(_messageList.get(index).getMessageId());
+    try {
+      MessageId currentMessageId = MessageIdImpl.fromByteArray(_messageList.get(index).getMessageId().toByteArray());
+      MessageId nextMessageId;
 
-    long currentLedgerId = currentMessageId.getLedgerId();
-    long currentEntryId = currentMessageId.getEntryId();
-    int currentPartitionIndex = currentMessageId.getPartitionIndex();
+      long currentLedgerId = ((MessageIdImpl) currentMessageId).getLedgerId();
+      long currentEntryId = ((MessageIdImpl) currentMessageId).getEntryId();
+      int currentPartitionIndex = ((MessageIdImpl) currentMessageId).getPartitionIndex();
 
-    if (currentMessageId instanceof BatchMessageIdImpl) {
-      int currentBatchIndex = ((BatchMessageIdImpl) currentMessageId).getBatchIndex();
-      int currentBatchSize = ((BatchMessageIdImpl) currentMessageId).getBatchSize();
+      if (currentMessageId instanceof BatchMessageIdImpl) {
+        int currentBatchIndex = ((BatchMessageIdImpl) currentMessageId).getBatchIndex();
+        int currentBatchSize = ((BatchMessageIdImpl) currentMessageId).getBatchSize();
 
-      if (currentBatchIndex < currentBatchSize - 1) {
-        nextMessageId =
-            new BatchMessageIdImpl(currentLedgerId, currentEntryId, currentPartitionIndex, currentBatchIndex + 1,
-                currentBatchSize, ((BatchMessageIdImpl) currentMessageId).getAcker());
+        if (currentBatchIndex < currentBatchSize - 1) {
+          nextMessageId =
+              new BatchMessageIdImpl(currentLedgerId, currentEntryId, currentPartitionIndex, currentBatchIndex + 1,
+                  ((BatchMessageIdImpl) currentMessageId).getAcker());
+        } else {
+          nextMessageId =
+              new BatchMessageIdImpl(currentLedgerId, currentEntryId + 1, currentPartitionIndex, 0, ((BatchMessageIdImpl) currentMessageId).getAcker());
+        }
       } else {
-        nextMessageId =
-            new BatchMessageIdImpl(currentLedgerId, currentEntryId + 1, currentPartitionIndex, 0, currentBatchSize,
-                ((BatchMessageIdImpl) currentMessageId).getAcker());
+        nextMessageId = DefaultImplementation.newMessageId(currentLedgerId, currentEntryId + 1, currentPartitionIndex);
       }
-    } else {
-      nextMessageId = DefaultImplementation.newMessageId(currentLedgerId, currentEntryId + 1, currentPartitionIndex);
+      return new MessageIdStreamOffset(nextMessageId);
+    } catch (Exception e) {
+      LOGGER.warn("Failed to calculate next message offset for index: {}", index);
+      return new MessageIdStreamOffset(_messageList.get(index).getMessageId());
     }
-    return new MessageIdStreamOffset(nextMessageId);
   }
 
   @Override

@@ -48,7 +48,6 @@ import org.apache.pulsar.client.api.TopicMetadata;
 import org.apache.pulsar.client.impl.BatchMessageIdImpl;
 import org.apache.pulsar.client.impl.MessageIdImpl;
 import org.apache.pulsar.client.internal.DefaultImplementation;
-import org.apache.pulsar.common.policies.data.InactiveTopicPolicies;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.PulsarContainer;
@@ -117,9 +116,9 @@ public class PulsarConsumerTest {
 
   private void createTopics(PulsarAdmin admin)
       throws PulsarAdminException {
-    InactiveTopicPolicies inactiveTopicPolicies = new InactiveTopicPolicies();
-    inactiveTopicPolicies.setDeleteWhileInactive(false);
-    admin.namespaces().setInactiveTopicPolicies("public/default", inactiveTopicPolicies);
+//    InactiveTopicPolicies inactiveTopicPolicies = new InactiveTopicPolicies();
+//    inactiveTopicPolicies.setDeleteWhileInactive(false);
+//    admin.namespaces().setInactiveTopicPolicies("public/default", inactiveTopicPolicies);
 
     admin.topics().createPartitionedTopic(TEST_TOPIC, NUM_PARTITION);
     admin.topics().createPartitionedTopic(TEST_TOPIC_BATCH, NUM_PARTITION);
@@ -142,7 +141,7 @@ public class PulsarConsumerTest {
 
   private long getNumberOfEntries(PulsarAdmin admin, String topicName) {
     try {
-      return admin.topics().getPartitionedStats(topicName, false).msgInCounter;
+      return admin.topics().getPartitionedStats(topicName, false).storageSize;
     } catch (Exception e) {
       e.printStackTrace();
       LOGGER.warn("Could not fetch number of rows in pulsar topic " + topicName, e);
@@ -370,9 +369,13 @@ public class PulsarConsumerTest {
   }
 
   private MessageId getMessageIdForPartitionAndIndex(int partitionNum, int index) {
-    MessageId startMessageIdRaw = _partitionToFirstMessageIdMap.get(partitionNum);
-    MessageIdImpl startMessageId = MessageIdImpl.convertToMessageIdImpl(startMessageIdRaw);
-    return DefaultImplementation.newMessageId(startMessageId.getLedgerId(), index, partitionNum);
+    try {
+      MessageId startMessageIdRaw = _partitionToFirstMessageIdMap.get(partitionNum);
+      MessageIdImpl startMessageId = (MessageIdImpl) MessageIdImpl.fromByteArray(startMessageIdRaw.toByteArray());
+      return DefaultImplementation.newMessageId(startMessageId.getLedgerId(), index, partitionNum);
+    } catch (Exception e){
+      return DefaultImplementation.newMessageId(0, index, partitionNum);
+    }
   }
 
   private MessageId getBatchMessageIdForPartitionAndIndex(int partitionNum, int index) {

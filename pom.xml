@@ -1737,6 +1737,9 @@
             <!-- Exclude build targets -->
             <exclude>**/target/**</exclude>
 
+            <!-- Generated maven build files -->
+            <exclude>**/dependency-reduced-pom.xml</exclude>
+
             <!-- Text and log files -->
             <exclude>**/*.txt</exclude>
             <exclude>**/*.log</exclude>

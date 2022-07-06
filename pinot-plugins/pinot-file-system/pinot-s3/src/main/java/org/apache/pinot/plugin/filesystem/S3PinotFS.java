@@ -98,7 +98,7 @@ public class S3PinotFS extends BasePinotFS {
     String serverSideEncryption = config.getProperty(SERVER_SIDE_ENCRYPTION_CONFIG_KEY);
     if (serverSideEncryption != null) {
       try {
-        _serverSideEncryption = ServerSideEncryption.fromValue(serverSideEncryption);
+        _serverSideEncryption = ServerSideEncryption.valueOf(serverSideEncryption);
       } catch (Exception e) {
         throw new UnsupportedOperationException(String
             .format("Unknown value '%s' for S3PinotFS config: 'serverSideEncryption'. Supported values are: %s",

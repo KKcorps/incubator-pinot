@@ -18,6 +18,10 @@
  */
 package org.apache.pinot.spi.data.readers;
 
+import com.fasterxml.jackson.databind.util.ByteBufferBackedOutputStream;
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.apache.commons.lang3.SerializationUtils;
 
@@ -25,7 +29,7 @@ import org.apache.commons.lang3.SerializationUtils;
 /**
  * The primary key of a record. Note that the value used in the primary key must be single-value.
  */
-public class PrimaryKey {
+public class PrimaryKey implements Serializable {
   private final Object[] _values;
 
   public PrimaryKey(Object[] values) {
@@ -37,7 +41,20 @@ public class PrimaryKey {
   }
 
   public byte[] asBytes() {
-    return SerializationUtils.serialize(_values);
+//    return SerializationUtils.serialize(_values);
+    return asBytesFirstStringIndex();
+  }
+
+  public byte[] asBytes(ByteBuffer reuse) {
+    reuse.clear();
+    SerializationUtils.serialize(_values, new ByteBufferBackedOutputStream(reuse));
+    return reuse.array();
+//    return asBytesFirstStringIndex();
+  }
+
+  public byte[] asBytesFirstStringIndex() {
+   byte[] arr =  ((String) _values[0]).getBytes(StandardCharsets.UTF_8);
+   return arr;
   }
 
   @Override
@@ -54,7 +71,12 @@ public class PrimaryKey {
 
   @Override
   public int hashCode() {
-    return Arrays.hashCode(_values);
+//    return Arrays.hashCode(_values);
+    return hashCodeFirstIndex();
+  }
+
+  public int hashCodeFirstIndex() {
+   return _values[0].hashCode();
   }
 
   @Override

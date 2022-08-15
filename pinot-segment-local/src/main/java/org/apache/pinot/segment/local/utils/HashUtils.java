@@ -48,4 +48,17 @@ public class HashUtils {
         throw new IllegalArgumentException(String.format("Unrecognized hash function %s", hashFunction));
     }
   }
+
+  public static byte[] hashPrimaryKeyAsBytes(PrimaryKey primaryKey, HashFunction hashFunction) {
+    switch (hashFunction) {
+      case NONE:
+        return primaryKey.asBytes();
+      case MD5:
+        return HashUtils.hashMD5(primaryKey.asBytes());
+      case MURMUR3:
+        return HashUtils.hashMurmur3(primaryKey.asBytes());
+      default:
+        throw new IllegalArgumentException(String.format("Unrecognized hash function %s", hashFunction));
+    }
+  }
 }

@@ -107,6 +107,12 @@
       <artifactId>quartz</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>org.rocksdb</groupId>
+      <artifactId>rocksdbjni</artifactId>
+      <version>7.4.4</version>
+    </dependency>
+
     <!-- Test dependencies -->
     <dependency>
       <groupId>org.testng</groupId>

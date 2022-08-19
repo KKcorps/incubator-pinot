@@ -58,7 +58,7 @@ public class UpsertConfig extends BaseJsonConfig {
   private String _metadataManagerClass;
 
   @JsonPropertyDescription("Custom configs for upsert metadata manager")
-  private Map<String, String> _metadataManagerConfigs;
+  private Map<String, String> _metadataManagerConfigs = new HashMap<>();
 
   @Deprecated
   public UpsertConfig(@JsonProperty(value = "mode", required = true) Mode mode,
@@ -116,7 +116,6 @@ public class UpsertConfig extends BaseJsonConfig {
     return _metadataManagerClass;
   }
 
-  @Nullable
   public Map<String, String> getMetadataManagerConfigs() {
     return _metadataManagerConfigs;
   }

@@ -19,15 +19,11 @@
 package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,9 +38,7 @@ import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.common.utils.LLCSegmentName;
 import org.apache.pinot.segment.local.indexsegment.immutable.EmptyIndexSegment;
 import org.apache.pinot.segment.local.indexsegment.immutable.ImmutableSegmentImpl;
-import org.apache.pinot.segment.local.upsert.metastore.KVStore;
 import org.apache.pinot.segment.local.upsert.metastore.rocksdb.RocksDBStore;
-import org.apache.pinot.segment.local.upsert.metastore.rocksdb.RocksDBUtils;
 import org.apache.pinot.segment.local.utils.HashUtils;
 import org.apache.pinot.segment.local.utils.SegmentLocks;
 import org.apache.pinot.segment.spi.ImmutableSegment;
@@ -52,26 +46,13 @@ import org.apache.pinot.segment.spi.IndexSegment;
 import org.apache.pinot.segment.spi.MutableSegment;
 import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap;
 import org.apache.pinot.spi.config.table.HashFunction;
-import org.apache.pinot.spi.config.table.UpsertConfig;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.readers.GenericRow;
 import org.apache.pinot.spi.data.readers.PrimaryKey;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.roaringbitmap.PeekableIntIterator;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
-import org.rocksdb.BlockBasedTableConfig;
-import org.rocksdb.BloomFilter;
-import org.rocksdb.CompressionType;
-import org.rocksdb.DataBlockIndexType;
-import org.rocksdb.IndexType;
-import org.rocksdb.InfoLogLevel;
-import org.rocksdb.LRUCache;
-import org.rocksdb.Options;
-import org.rocksdb.ReadOptions;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.Statistics;
-import org.rocksdb.WriteOptions;
+import org.rocksdb.ColumnFamilyHandle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -120,7 +101,8 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
   private final ConcurrentHashMap<Integer, Object> _segmentIdToSegmentMap = new ConcurrentHashMap<>();
   private final AtomicInteger _segmentId = new AtomicInteger();
 
-  private final KVStore<byte[], byte[]> _rocksDB;
+  private final RocksDBStore _rocksDB;
+  private final ColumnFamilyHandle _cfHandle;
 
   @VisibleForTesting
   final Set<IndexSegment> _replacedSegments = ConcurrentHashMap.newKeySet();
@@ -131,9 +113,10 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
   private long _lastOutOfOrderEventReportTimeNs = Long.MIN_VALUE;
   private int _numOutOfOrderEvents = 0;
 
-  public RocksDBStorePartitionUpsertMetadataManager(String tableNameWithType, int partitionId, List<String> primaryKeyColumns,
-      FieldSpec comparisonColumn, HashFunction hashFunction, @Nullable PartialUpsertHandler partialUpsertHandler,
-      ServerMetrics serverMetrics, File dataDir, UpsertConfig upsertConfig) throws Exception {
+  public RocksDBStorePartitionUpsertMetadataManager(String tableNameWithType, int partitionId,
+      List<String> primaryKeyColumns, FieldSpec comparisonColumn, HashFunction hashFunction,
+      @Nullable PartialUpsertHandler partialUpsertHandler, ServerMetrics serverMetrics, RocksDBStore rocksDB)
+      throws Exception {
     _tableNameWithType = tableNameWithType;
     _partitionId = partitionId;
     _primaryKeyColumns = primaryKeyColumns;
@@ -143,15 +126,12 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
     _serverMetrics = serverMetrics;
     _logger = LoggerFactory.getLogger(tableNameWithType + "-" + partitionId + "-" + getClass().getSimpleName());
 
-    //TODO: Should we create only 1 rocksDB instance and use column families per table/partition
-    String dirPath = Joiner.on("/").join("rocksdb", "partition-" + partitionId);
-    File dir = new File(dataDir, dirPath);
-    dir.mkdirs();
+    _rocksDB = rocksDB;
 
-    Map<String, String> configs = upsertConfig.getMetadataManagerConfigs();
-    configs.put(RocksDBUtils.DATA_DIR, dir.getAbsolutePath());
-    _rocksDB = new RocksDBStore();
-    _rocksDB.init(configs);
+    String partitionName = tableNameWithType + "_" + partitionId;
+    _cfHandle = _rocksDB.addShard(partitionName);
+    _logger.info("Created partition: {} in rocksDB with options: {}", partitionName,
+        _cfHandle.getDescriptor().getOptions());
   }
 
   /**
@@ -174,8 +154,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
   void addSegment(ImmutableSegment segment, @Nullable ThreadSafeMutableRoaringBitmap validDocIds,
       @Nullable Iterator<RecordInfo> recordInfoIterator) {
     String segmentName = segment.getSegmentName();
-    _logger.info("Adding segment: {}, current primary key count: {}", segmentName,
-        _rocksDB.getNumKeys());
+    _logger.info("Adding segment: {}, current primary key count: {}", segmentName, _rocksDB.getNumKeys(_cfHandle));
 
     if (segment instanceof EmptyIndexSegment) {
       _logger.info("Skip adding empty segment: {}", segmentName);
@@ -200,7 +179,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
     }
 
     // Update metrics
-    long numPrimaryKeys = _rocksDB.getNumKeys();
+    long numPrimaryKeys = _rocksDB.getNumKeys(_cfHandle);
     _serverMetrics.setValueOfPartitionGauge(_tableNameWithType, _partitionId, ServerGauge.UPSERT_PRIMARY_KEYS_COUNT,
         numPrimaryKeys);
 
@@ -259,7 +238,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
         lock = UpsertLock.getPrimaryKeyLock(recordInfo.getPrimaryKey());
         lock.lock();
         byte[] primaryKey = HashUtils.hashPrimaryKeyAsBytes(recordInfo.getPrimaryKey(), _hashFunction);
-        byte[] value = _rocksDB.get(primaryKey);
+        byte[] value = _rocksDB.get(_cfHandle, primaryKey);
         if (value != null) {
           RecordLocationWithSegmentId currentRecordLocation = new RecordLocationWithSegmentId(value);
 
@@ -274,8 +253,9 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
             if (comparisonResult >= 0) {
               validDocIds.replace(currentRecordLocation.getDocId(), recordInfo.getDocId());
               RecordLocationWithSegmentId newRecordLocationWithSegmentId =
-                  new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
-              _rocksDB.put(primaryKey, newRecordLocationWithSegmentId.toBytes());
+                  new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(),
+                      (long) recordInfo.getComparisonValue());
+              _rocksDB.put(_cfHandle, primaryKey, newRecordLocationWithSegmentId.toBytes());
               continue;
             } else {
               continue;
@@ -295,8 +275,9 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
                 validDocIdsForOldSegment.remove(currentRecordLocation.getDocId());
               }
               RecordLocationWithSegmentId newRecordLocationWithSegmentId =
-                  new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
-              _rocksDB.put(primaryKey, newRecordLocationWithSegmentId.toBytes());
+                  new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(),
+                      (long) recordInfo.getComparisonValue());
+              _rocksDB.put(_cfHandle, primaryKey, newRecordLocationWithSegmentId.toBytes());
               continue;
             } else {
               continue;
@@ -311,8 +292,9 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
             if (comparisonResult >= 0) {
               validDocIds.add(recordInfo.getDocId());
               RecordLocationWithSegmentId newRecordLocationWithSegmentId =
-                  new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
-              _rocksDB.put(primaryKey, newRecordLocationWithSegmentId.toBytes());
+                  new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(),
+                      (long) recordInfo.getComparisonValue());
+              _rocksDB.put(_cfHandle, primaryKey, newRecordLocationWithSegmentId.toBytes());
               continue;
             } else {
               continue;
@@ -323,24 +305,28 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
           // Update the record location when getting a newer comparison value, or the value is the same as the
           // current value, but the segment has a larger sequence number (the segment is newer than the current
           // segment).
-          if (comparisonResult > 0 || (comparisonResult == 0 && LLCSegmentName.isLowLevelConsumerSegmentName(segmentName) && LLCSegmentName.isLowLevelConsumerSegmentName(currentSegmentName)
-              && LLCSegmentName.getSequenceNumber(segmentName) > LLCSegmentName.getSequenceNumber(currentSegmentName))) {
+          if (comparisonResult > 0 || (comparisonResult == 0 && LLCSegmentName.isLowLevelConsumerSegmentName(
+              segmentName) && LLCSegmentName.isLowLevelConsumerSegmentName(currentSegmentName)
+              && LLCSegmentName.getSequenceNumber(segmentName) > LLCSegmentName.getSequenceNumber(
+              currentSegmentName))) {
             Objects.requireNonNull(currentSegment.getValidDocIds()).remove(currentRecordLocation.getDocId());
             validDocIds.add(recordInfo.getDocId());
             RecordLocationWithSegmentId newRecordLocationWithSegmentId =
-                new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
-            _rocksDB.put(primaryKey, newRecordLocationWithSegmentId.toBytes());
+                new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(),
+                    (long) recordInfo.getComparisonValue());
+            _rocksDB.put(_cfHandle, primaryKey, newRecordLocationWithSegmentId.toBytes());
           }
         } else {
           // New primary key
           validDocIds.add(recordInfo.getDocId());
-          RecordLocationWithSegmentId newRecordLocationWithSegmentId = new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
-          _rocksDB.put(primaryKey, newRecordLocationWithSegmentId.toBytes());
+          RecordLocationWithSegmentId newRecordLocationWithSegmentId =
+              new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
+          _rocksDB.put(_cfHandle, primaryKey, newRecordLocationWithSegmentId.toBytes());
         }
       } catch (Exception ex) {
         _logger.warn("Could not update partition metadata in rocksDB for segment {}", segmentName, ex);
       } finally {
-        if( lock != null) {
+        if (lock != null) {
           lock.unlock();
         }
       }
@@ -364,7 +350,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
     try {
       lock.lock();
       byte[] primaryKey = HashUtils.hashPrimaryKeyAsBytes(recordInfo.getPrimaryKey(), _hashFunction);
-      byte[] value = _rocksDB.get(primaryKey);
+      byte[] value = _rocksDB.get(_cfHandle, primaryKey);
 
       if (value != null) {
         // Existing primary key
@@ -381,14 +367,16 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
             Objects.requireNonNull(currentSegment.getValidDocIds()).remove(currentDocId);
             validDocIds.add(recordInfo.getDocId());
           }
-          RecordLocationWithSegmentId newRecordLocationWithSegmentId = new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
-          _rocksDB.put(primaryKey, newRecordLocationWithSegmentId.toBytes());
+          RecordLocationWithSegmentId newRecordLocationWithSegmentId =
+              new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
+          _rocksDB.put(_cfHandle, primaryKey, newRecordLocationWithSegmentId.toBytes());
         }
       } else {
         // New primary key
         validDocIds.add(recordInfo.getDocId());
-        RecordLocationWithSegmentId newRecordLocationWithSegmentId = new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
-        _rocksDB.put(primaryKey, newRecordLocationWithSegmentId.toBytes());
+        RecordLocationWithSegmentId newRecordLocationWithSegmentId =
+            new RecordLocationWithSegmentId(segmentId, recordInfo.getDocId(), (long) recordInfo.getComparisonValue());
+        _rocksDB.put(_cfHandle, primaryKey, newRecordLocationWithSegmentId.toBytes());
       }
     } catch (Exception ex) {
       _logger.warn("Could not update partition metadata in rocksDB for segment {}", segment.getSegmentName(), ex);
@@ -398,7 +386,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
 
     // Update metrics
     _serverMetrics.setValueOfPartitionGauge(_tableNameWithType, _partitionId, ServerGauge.UPSERT_PRIMARY_KEYS_COUNT,
-        _rocksDB.getNumKeys());
+        _rocksDB.getNumKeys(_cfHandle));
   }
 
   /**
@@ -417,8 +405,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
         "Cannot replace segment with different name for table: {}, old segment: {}, new segment: {}",
         _tableNameWithType, oldSegment.getSegmentName(), segmentName);
     _logger.info("Replacing {} segment: {}, current primary key count: {}",
-        oldSegment instanceof ImmutableSegment ? "immutable" : "mutable", segmentName,
-        _rocksDB.getNumKeys());
+        oldSegment instanceof ImmutableSegment ? "immutable" : "mutable", segmentName, _rocksDB.getNumKeys(_cfHandle));
 
     Lock segmentLock = SegmentLocks.getSegmentLock(_tableNameWithType, segmentName);
     segmentLock.lock();
@@ -467,7 +454,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
     }
 
     // Update metrics
-    long numPrimaryKeys = _rocksDB.getNumKeys();
+    long numPrimaryKeys = _rocksDB.getNumKeys(_cfHandle);
     _serverMetrics.setValueOfPartitionGauge(_tableNameWithType, _partitionId, ServerGauge.UPSERT_PRIMARY_KEYS_COUNT,
         numPrimaryKeys);
 
@@ -481,8 +468,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
   public void removeSegment(IndexSegment segment) {
     String segmentName = segment.getSegmentName();
     _logger.info("Removing {} segment: {}, current primary key count: {}",
-        segment instanceof ImmutableSegment ? "immutable" : "mutable", segmentName,
-        _rocksDB.getNumKeys());
+        segment instanceof ImmutableSegment ? "immutable" : "mutable", segmentName, _rocksDB.getNumKeys(_cfHandle));
 
     if (_replacedSegments.remove(segment)) {
       _logger.info("Skip removing replaced segment: {}", segmentName);
@@ -506,7 +492,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
     }
 
     // Update metrics
-    long numPrimaryKeys = _rocksDB.getNumKeys();
+    long numPrimaryKeys = _rocksDB.getNumKeys(_cfHandle);
     _serverMetrics.setValueOfPartitionGauge(_tableNameWithType, _partitionId, ServerGauge.UPSERT_PRIMARY_KEYS_COUNT,
         numPrimaryKeys);
 
@@ -526,19 +512,19 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
         lock = UpsertLock.getPrimaryKeyLock(primaryKey);
         lock.lock();
         byte[] primaryKeyBytes = HashUtils.hashPrimaryKeyAsBytes(primaryKey, _hashFunction);
-        byte[] value = _rocksDB.get(primaryKeyBytes);
+        byte[] value = _rocksDB.get(_cfHandle, primaryKeyBytes);
 
         if (value != null) {
           // Existing primary key
           RecordLocationWithSegmentId recordLocation = new RecordLocationWithSegmentId(value);
           if (recordLocation.getSegment() == segmentId) {
-            _rocksDB.delete(primaryKeyBytes);
+            _rocksDB.delete(_cfHandle, primaryKeyBytes);
           }
         }
       } catch (Exception ex) {
         _logger.warn("Could not remove partition metadata in rocksDB for segment {}", segment.getSegmentName(), ex);
       } finally {
-        if( lock != null) {
+        if (lock != null) {
           lock.unlock();
         }
       }
@@ -558,7 +544,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
     byte[] primaryKeyBytes = HashUtils.hashPrimaryKeyAsBytes(recordInfo.getPrimaryKey(), _hashFunction);
     byte[] value = null;
     try {
-      value = _rocksDB.get(primaryKeyBytes);
+      value = _rocksDB.get(_cfHandle, primaryKeyBytes);
     } catch (Exception e) {
       _logger.warn("Cannot get record for key: {}", recordInfo.getPrimaryKey(), e);
     }
@@ -571,11 +557,14 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
         _reuse.clear();
         int segmentId = currentRecordLocation.getSegment();
         IndexSegment indexSegment = (IndexSegment) _segmentIdToSegmentMap.get(segmentId);
-        if(indexSegment != null) {
+        if (indexSegment != null) {
           GenericRow previousRecord = indexSegment.getRecord(currentRecordLocation.getDocId(), _reuse);
           return _partialUpsertHandler.merge(previousRecord, record);
         } else {
-          _logger.warn("Segment not found in upsert metadata for segmentId: {}. This should not happen and can lead to inconsistencies in partial upsert", segmentId);
+          _logger.warn(
+              "Segment not found in upsert metadata for segmentId: {}. This should not happen and can lead to "
+                  + "inconsistencies in partial upsert",
+              segmentId);
           return record;
         }
       } else {
@@ -622,7 +611,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
       ByteBuffer buffer = ByteBuffer.wrap(serializedRecordLocation);
       _segment = buffer.getInt();
       _docId = buffer.getInt();
-      switch(_comparisonColumn.getDataType()) {
+      switch (_comparisonColumn.getDataType()) {
         case INT:
           _comparisonValue = buffer.getInt();
           break;
@@ -643,7 +632,9 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
           break;
         default:
           _comparisonValue = null;
-          _logger.error("Comparison column datatype {} not supported in serialization", _comparisonColumn.getDataType());
+          _logger.error("Comparison column datatype {} not supported in serialization",
+              _comparisonColumn.getDataType());
+          break;
       }
     }
 
@@ -663,7 +654,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
       ByteBuffer buffer = ByteBuffer.allocate(256);
       buffer.putInt(_segment);
       buffer.putInt(_docId);
-      switch(_comparisonColumn.getDataType()) {
+      switch (_comparisonColumn.getDataType()) {
         case INT:
           buffer.putInt((Integer) _comparisonValue);
           break;
@@ -684,9 +675,9 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
           break;
         default:
           _logger.warn("Comparison column datatype {} not supported in serialization", _comparisonColumn.getDataType());
+          break;
       }
       return buffer.array();
     }
   }
-
 }

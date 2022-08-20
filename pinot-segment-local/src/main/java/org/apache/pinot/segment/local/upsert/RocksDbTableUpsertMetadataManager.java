@@ -113,6 +113,10 @@ public class RocksDbTableUpsertMetadataManager implements TableUpsertMetadataMan
   @Override
   public void close()
       throws IOException {
+    for (RocksDBStorePartitionUpsertMetadataManager _rocksDbUpsertMetadataManager :
+        _partitionMetadataManagerMap.values()) {
+      _rocksDbUpsertMetadataManager.close();
+    }
     _rocksDB.close();
   }
 }

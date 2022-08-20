@@ -42,6 +42,7 @@ public class RocksDBUtils {
   public static final String ROCKSDB_HASH_INDEX_ENABLED = "rocksdb.hash_index.enabled";
   public static final String ROCKSDB_PREFIX_EXTRACTOR_LENGTH = "rocksdb.prefix_extractor.length";
   public static final String ROCKSDB_MAX_OPEN_FILES = "rocksdb.max_open_files";
+  public static final String ROCKSDB_MAX_BACKGROUND_THREADS = "rocksdb.max_background_threads";
   public static final String DATA_DIR = "data.dir";
 
   public static final String DEFAULT_ROCKSDB_BLOOM_FILTER_BITS = "10";
@@ -53,6 +54,7 @@ public class RocksDBUtils {
   public static final String DEFAULT_ROCKSDB_HASH_INDEX_ENABLED = "true";
   public static final String DEFAULT_ROCKSDB_PREFIX_EXTRACTOR_LENGTH = "10";
   public static final String DEFAULT_ROCKSDB_MAX_OPEN_FILES = "64";
+  public static final String DEFAULT_ROCKSDB_MAX_BACKGROUND_THREADS = "4";
   public static final String ROCKSDB_DIR = "rocksDB";
 
   private RocksDBUtils() {
@@ -115,7 +117,6 @@ public class RocksDBUtils {
         InfoLogLevel.valueOf(config.getOrDefault(ROCKSDB_LOG_LEVEL, DEFAULT_ROCKSDB_LOG_LEVEL))); // disable logging
     dbOptions.setStatsDumpPeriodSec(Integer.parseInt(config.getOrDefault(ROCKSDB_STATS_DUMP_PERIOD_SECONDS,
         DEFAULT_ROCKSDB_STATS_DUMP_PERIOD_SECONDS))); // disable dumping rocksDB stats in logs
-//    dbOptions.setUseFsync(false);
     dbOptions.setMemtableWholeKeyFiltering(true);
     dbOptions.setMemtablePrefixBloomSizeRatio(0.1);
 
@@ -123,6 +124,9 @@ public class RocksDBUtils {
     dbOptions.setRowCache(new LRUCache(
         Long.parseLong(config.getOrDefault(ROCKSDB_ROW_CACHE_SIZE, DEFAULT_ROCKSDB_ROW_CACHE_SIZE_BYTES))));
     dbOptions.setCompressionType(CompressionType.LZ4_COMPRESSION);
+
+    dbOptions.setMaxBackgroundJobs(
+        Integer.parseInt(config.getOrDefault(ROCKSDB_MAX_BACKGROUND_THREADS, DEFAULT_ROCKSDB_MAX_BACKGROUND_THREADS)));
 
     return dbOptions;
   }

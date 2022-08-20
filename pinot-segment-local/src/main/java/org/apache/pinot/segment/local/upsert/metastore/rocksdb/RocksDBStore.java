@@ -37,21 +37,21 @@ public class RocksDBStore implements KVStore<ColumnFamilyHandle, byte[], byte[]>
   private ReadOptions _readOptions;
 
   private RocksDB _rocksDB;
+  private String _storagePath;
 
   Logger _logger = LoggerFactory.getLogger(getClass().getSimpleName());
 
   @Override
   public void init(Map<String, String> config) {
-    String storagePath = "";
     try {
-      storagePath = RocksDBUtils.getRocksDBStoragePath(config);
+      _storagePath = RocksDBUtils.getRocksDBStoragePath(config);
       Options options = RocksDBUtils.getRocksDBOptions(config);
-      _rocksDB = RocksDB.open(options, RocksDBUtils.getRocksDBStoragePath(config));
+      _rocksDB = RocksDB.open(options, _storagePath);
       _readOptions = new ReadOptions();
       _writeOptions = new WriteOptions();
-      _logger.info("Created RocksDB instance for path: {}", storagePath);
+      _logger.info("Created RocksDB instance for path: {}", _storagePath);
     } catch (Exception e) {
-      _logger.error("Cannot open RocksDB database on path: {}", storagePath, e);
+      _logger.error("Cannot open RocksDB database on path: {}", _storagePath, e);
     }
   }
 
@@ -94,6 +94,7 @@ public class RocksDBStore implements KVStore<ColumnFamilyHandle, byte[], byte[]>
   @Override
   public void close()
       throws IOException {
+    _logger.info("Closing RocksDB instance for path: {}", _storagePath);
     _rocksDB.close();
   }
 }

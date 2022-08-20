@@ -20,6 +20,7 @@ package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -130,7 +131,7 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
 
     String partitionName = tableNameWithType + "_" + partitionId;
     _cfHandle = _rocksDB.addShard(partitionName);
-    _logger.info("Created partition: {} in rocksDB with options: {}", partitionName,
+    _logger.info("Created columnFamily: {} in rocksDB with options: {}", partitionName,
         _cfHandle.getDescriptor().getOptions());
   }
 
@@ -583,6 +584,18 @@ public class RocksDBStorePartitionUpsertMetadataManager implements PartitionUpse
     } else {
       // New primary key
       return record;
+    }
+  }
+
+  @Override
+  public void close()
+      throws IOException {
+    try {
+      byte[] cfHandleName = _cfHandle.getName();
+      _logger.info("Closing columnFamily: {} in rocksDB", cfHandleName);
+      _cfHandle.close();
+    } catch (Exception e) {
+      _logger.error("Error occurred while closing columnFamily in RocksDB");
     }
   }
 

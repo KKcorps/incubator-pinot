@@ -32,6 +32,7 @@ import org.apache.pinot.segment.local.data.manager.SegmentDataManager;
 import org.apache.pinot.segment.local.segment.readers.PinotSegmentRecordReader;
 import org.apache.pinot.segment.spi.ImmutableSegment;
 import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.data.readers.GenericRow;
@@ -48,46 +49,47 @@ import org.apache.pinot.spi.data.readers.PrimaryKey;
  * which can be accessed via {@link #getInstanceByTableName} static method.
  */
 @ThreadSafe
-public class DimensionTableDataManager extends BaseDimensionTableDataManager {
+public class MemOptimizedDimensionTableDataManager extends BaseDimensionTableDataManager {
 
   // Storing singletons per table in a map
-  private static final Map<String, DimensionTableDataManager> INSTANCES = new ConcurrentHashMap<>();
+  private static final Map<String, MemOptimizedDimensionTableDataManager> INSTANCES = new ConcurrentHashMap<>();
 
-  private DimensionTableDataManager() {
+  private MemOptimizedDimensionTableDataManager() {
   }
 
   /**
    * `createInstanceByTableName` should only be used by the {@link TableDataManagerProvider} and the returned
    * instance should be properly initialized via {@link #init} method before using.
    */
-  public static DimensionTableDataManager createInstanceByTableName(String tableNameWithType) {
-    return INSTANCES.computeIfAbsent(tableNameWithType, k -> new DimensionTableDataManager());
+  public static MemOptimizedDimensionTableDataManager createInstanceByTableName(String tableNameWithType) {
+    return INSTANCES.computeIfAbsent(tableNameWithType, k -> new MemOptimizedDimensionTableDataManager());
   }
 
   @VisibleForTesting
-  public static DimensionTableDataManager registerDimensionTable(String tableNameWithType,
-      DimensionTableDataManager instance) {
+  public static MemOptimizedDimensionTableDataManager registerDimensionTable(String tableNameWithType,
+      MemOptimizedDimensionTableDataManager instance) {
     return INSTANCES.computeIfAbsent(tableNameWithType, k -> instance);
   }
 
-  public static DimensionTableDataManager getInstanceByTableName(String tableNameWithType) {
+  public static MemOptimizedDimensionTableDataManager getInstanceByTableName(String tableNameWithType) {
     return INSTANCES.get(tableNameWithType);
   }
 
-  private static final AtomicReferenceFieldUpdater<DimensionTableDataManager, DimensionTable> UPDATER =
-      AtomicReferenceFieldUpdater.newUpdater(DimensionTableDataManager.class, DimensionTable.class, "_dimensionTable");
+  private static final AtomicReferenceFieldUpdater<MemOptimizedDimensionTableDataManager, MemoryOptimizedDimensionTable> UPDATER =
+      AtomicReferenceFieldUpdater.newUpdater(MemOptimizedDimensionTableDataManager.class, MemoryOptimizedDimensionTable.class, "_dimensionTable");
 
-  private volatile DimensionTable _dimensionTable;
+  private volatile MemoryOptimizedDimensionTable _dimensionTable;
 
   @Override
   protected void doInit() {
     super.doInit();
     Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, _tableNameWithType);
     Preconditions.checkState(schema != null, "Failed to find schema for dimension table: %s", _tableNameWithType);
+
     List<String> primaryKeyColumns = schema.getPrimaryKeyColumns();
     Preconditions.checkState(CollectionUtils.isNotEmpty(primaryKeyColumns),
         "Primary key columns must be configured for dimension table: %s", _tableNameWithType);
-    _dimensionTable = new DimensionTable(schema, primaryKeyColumns);
+    _dimensionTable = new MemoryOptimizedDimensionTable(schema, primaryKeyColumns);
   }
 
   @Override
@@ -122,22 +124,22 @@ public class DimensionTableDataManager extends BaseDimensionTableDataManager {
    */
   @Override
   public void loadLookupTable() {
-    DimensionTable snapshot;
-    DimensionTable replacement;
+    MemoryOptimizedDimensionTable snapshot;
+    MemoryOptimizedDimensionTable replacement;
     do {
       snapshot = _dimensionTable;
       replacement = createDimensionTable();
     } while (!UPDATER.compareAndSet(this, snapshot, replacement));
   }
 
-  private DimensionTable createDimensionTable() {
+  private MemoryOptimizedDimensionTable createDimensionTable() {
     Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, _tableNameWithType);
     Preconditions.checkState(schema != null, "Failed to find schema for dimension table: %s", _tableNameWithType);
     List<String> primaryKeyColumns = schema.getPrimaryKeyColumns();
     Preconditions.checkState(CollectionUtils.isNotEmpty(primaryKeyColumns),
         "Primary key columns must be configured for dimension table: %s", _tableNameWithType);
 
-    Map<PrimaryKey, GenericRow> lookupTable = new HashMap<>();
+    Map<PrimaryKey, LookupRecordLocation> lookupTable = new HashMap<>();
     List<SegmentDataManager> segmentManagers = acquireAllSegments();
     try {
       for (SegmentDataManager segmentManager : segmentManagers) {
@@ -149,7 +151,7 @@ public class DimensionTableDataManager extends BaseDimensionTableDataManager {
             for (int i = 0; i < numTotalDocs; i++) {
               GenericRow row = new GenericRow();
               recordReader.getRecord(i, row);
-              lookupTable.put(row.getPrimaryKey(primaryKeyColumns), row);
+              lookupTable.put(row.getPrimaryKey(primaryKeyColumns), new LookupRecordLocation(indexSegment, i));
             }
           } catch (Exception e) {
             throw new RuntimeException(
@@ -157,7 +159,7 @@ public class DimensionTableDataManager extends BaseDimensionTableDataManager {
           }
         }
       }
-      return new DimensionTable(schema, primaryKeyColumns, lookupTable);
+      return new MemoryOptimizedDimensionTable(schema, primaryKeyColumns, lookupTable);
     } finally {
       for (SegmentDataManager segmentManager : segmentManagers) {
         releaseSegment(segmentManager);

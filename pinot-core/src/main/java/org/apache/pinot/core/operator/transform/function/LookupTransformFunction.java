@@ -23,7 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
-import org.apache.pinot.core.data.manager.offline.DimensionTableDataManager;
+import org.apache.pinot.core.data.manager.offline.BaseDimensionTableDataManager;
+import org.apache.pinot.core.data.manager.offline.DimensionTableDataManagerFactory;
 import org.apache.pinot.core.operator.blocks.ProjectionBlock;
 import org.apache.pinot.core.operator.transform.TransformResultMetadata;
 import org.apache.pinot.segment.spi.datasource.DataSource;
@@ -77,7 +78,7 @@ public class LookupTransformFunction extends BaseTransformFunction {
   private final List<FieldSpec> _joinValueFieldSpecs = new ArrayList<>();
   private final List<TransformFunction> _joinValueFunctions = new ArrayList<>();
 
-  private DimensionTableDataManager _dataManager;
+  private BaseDimensionTableDataManager _dataManager;
   private FieldSpec _lookupColumnFieldSpec;
 
   private int _nullIntValue;
@@ -127,7 +128,7 @@ public class LookupTransformFunction extends BaseTransformFunction {
     }
 
     // Validate lookup table and relevant columns
-    _dataManager = DimensionTableDataManager.getInstanceByTableName(dimTableName);
+    _dataManager = DimensionTableDataManagerFactory.getDimensionTableDataManager(dimTableName);
     Preconditions.checkArgument(_dataManager != null, "Dimension table does not exist: %s", dimTableName);
 
     Preconditions.checkArgument(_dataManager.isPopulated(), "Dimension table is not populated: %s", dimTableName);

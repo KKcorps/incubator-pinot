@@ -347,6 +347,7 @@ public abstract class BaseTableDataManager implements TableDataManager {
     indexLoadingConfig.setTableDataDir(_tableDataDir);
     File indexDir = getSegmentDataDir(segmentName, segmentTier, indexLoadingConfig.getTableConfig());
     try {
+      reloadSegmentInternal(segmentName, indexLoadingConfig, zkMetadata, localMetadata, schema, forceDownload);
       // Create backup directory to handle failure of segment reloading.
       createBackup(indexDir);
 
@@ -393,6 +394,11 @@ public abstract class BaseTableDataManager implements TableDataManager {
       }
       throw reloadFailureException;
     }
+  }
+
+  protected void reloadSegmentInternal(String segmentName, IndexLoadingConfig indexLoadingConfig, SegmentZKMetadata zkMetadata,
+      SegmentMetadata localMetadata, @Nullable Schema schema, boolean forceDownload) {
+
   }
 
   @Override

@@ -40,39 +40,47 @@ public abstract class BaseTableUpsertMetadataManager implements TableUpsertMetad
   protected PartialUpsertHandler _partialUpsertHandler;
   protected boolean _enableSnapshot;
   protected ServerMetrics _serverMetrics;
+  protected UpsertConfig _upsertConfig;
 
   @Override
   public void init(TableConfig tableConfig, Schema schema, TableDataManager tableDataManager,
       ServerMetrics serverMetrics) {
     _tableNameWithType = tableConfig.getTableName();
 
-    UpsertConfig upsertConfig = tableConfig.getUpsertConfig();
-    Preconditions.checkArgument(upsertConfig != null && upsertConfig.getMode() != UpsertConfig.Mode.NONE,
+    _upsertConfig = tableConfig.getUpsertConfig();
+    Preconditions.checkArgument(_upsertConfig != null && _upsertConfig.getMode() != UpsertConfig.Mode.NONE,
         "Upsert must be enabled for table: %s", _tableNameWithType);
 
     _primaryKeyColumns = schema.getPrimaryKeyColumns();
     Preconditions.checkArgument(!CollectionUtils.isEmpty(_primaryKeyColumns),
         "Primary key columns must be configured for upsert enabled table: %s", _tableNameWithType);
 
-    _comparisonColumn = upsertConfig.getComparisonColumn();
+    _comparisonColumn = _upsertConfig.getComparisonColumn();
     if (_comparisonColumn == null) {
       _comparisonColumn = tableConfig.getValidationConfig().getTimeColumnName();
     }
 
-    _hashFunction = upsertConfig.getHashFunction();
+    _hashFunction = _upsertConfig.getHashFunction();
 
-    if (upsertConfig.getMode() == UpsertConfig.Mode.PARTIAL) {
-      Map<String, UpsertConfig.Strategy> partialUpsertStrategies = upsertConfig.getPartialUpsertStrategies();
+    if (_upsertConfig.getMode() == UpsertConfig.Mode.PARTIAL) {
+      Map<String, UpsertConfig.Strategy> partialUpsertStrategies = _upsertConfig.getPartialUpsertStrategies();
       Preconditions.checkArgument(partialUpsertStrategies != null,
           "Partial-upsert strategies must be configured for partial-upsert enabled table: %s", _tableNameWithType);
       _partialUpsertHandler =
-          new PartialUpsertHandler(schema, partialUpsertStrategies, upsertConfig.getDefaultPartialUpsertStrategy(),
+          new PartialUpsertHandler(schema, partialUpsertStrategies, _upsertConfig.getDefaultPartialUpsertStrategy(),
               _comparisonColumn);
     }
 
-    _enableSnapshot = upsertConfig.isEnableSnapshot();
+    _enableSnapshot = _upsertConfig.isEnableSnapshot();
 
     _serverMetrics = serverMetrics;
+  }
+
+  @Override
+  public void updateSchema(Schema schema) {
+    if (_upsertConfig.getMode() == UpsertConfig.Mode.PARTIAL) {
+      _partialUpsertHandler.addNewColumns(schema, _upsertConfig.getDefaultPartialUpsertStrategy(), _comparisonColumn);
+    }
   }
 
   @Override

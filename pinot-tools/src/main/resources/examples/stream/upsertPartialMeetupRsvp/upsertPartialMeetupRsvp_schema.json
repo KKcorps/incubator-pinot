@@ -28,10 +28,6 @@
       "name": "group_city"
     },
     {
-      "dataType": "STRING",
-      "name": "group_country"
-    },
-    {
       "dataType": "LONG",
       "name": "group_id"
     },

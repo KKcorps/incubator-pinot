@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
@@ -64,6 +65,7 @@ import org.apache.pinot.segment.local.utils.SchemaUtils;
 import org.apache.pinot.segment.local.utils.tablestate.TableStateUtils;
 import org.apache.pinot.segment.spi.ImmutableSegment;
 import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.segment.spi.SegmentMetadata;
 import org.apache.pinot.spi.config.table.DedupConfig;
 import org.apache.pinot.spi.config.table.IndexingConfig;
 import org.apache.pinot.spi.config.table.TableConfig;
@@ -254,6 +256,17 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
     return _tableUpsertMetadataManager != null
         && _tableUpsertMetadataManager.getUpsertMode() == UpsertConfig.Mode.PARTIAL;
   }
+
+  @Override
+  protected void reloadSegmentInternal(String segmentName, IndexLoadingConfig indexLoadingConfig, SegmentZKMetadata zkMetadata,
+      SegmentMetadata localMetadata, @Nullable Schema schema, boolean forceDownload) {
+    if (schema != null) {
+      //TODO: this method is being called on every segment reload but ideally it should only be called on reload table once or schema update
+      _logger.info("Updating Table Upsert Metadata Manager schema: {}", schema.getSchemaName());
+      _tableUpsertMetadataManager.updateSchema(schema);
+    }
+  }
+
 
   /*
    * This call comes in one of two ways:

@@ -20,6 +20,7 @@ package org.apache.pinot.segment.local.upsert;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.pinot.segment.local.upsert.merger.PartialUpsertMerger;
 import org.apache.pinot.segment.local.upsert.merger.PartialUpsertMergerFactory;
 import org.apache.pinot.spi.config.table.UpsertConfig;
@@ -32,19 +33,38 @@ import org.apache.pinot.spi.data.readers.GenericRow;
  */
 public class PartialUpsertHandler {
   // _column2Mergers maintains the mapping of merge strategies per columns.
-  private final Map<String, PartialUpsertMerger> _column2Mergers = new HashMap<>();
+  private final ConcurrentHashMap<String, PartialUpsertMerger> _column2Mergers = new ConcurrentHashMap<>();
 
   public PartialUpsertHandler(Schema schema, Map<String, UpsertConfig.Strategy> partialUpsertStrategies,
       UpsertConfig.Strategy defaultPartialUpsertStrategy, String comparisonColumn) {
+
     for (Map.Entry<String, UpsertConfig.Strategy> entry : partialUpsertStrategies.entrySet()) {
-      _column2Mergers.put(entry.getKey(), PartialUpsertMergerFactory.getMerger(entry.getValue()));
+      _column2Mergers.compute(entry.getKey(), (a, b) ->PartialUpsertMergerFactory.getMerger(entry.getValue()));
     }
     // For all physical columns (including date time columns) except for primary key columns and comparison column.
     // If no comparison column is configured, use main time column as the comparison time.
     for (String columnName : schema.getPhysicalColumnNames()) {
       if (!schema.getPrimaryKeyColumns().contains(columnName) && !_column2Mergers.containsKey(columnName)
           && !comparisonColumn.equals(columnName)) {
-        _column2Mergers.put(columnName, PartialUpsertMergerFactory.getMerger(defaultPartialUpsertStrategy));
+        _column2Mergers.compute(columnName, (a, b) -> PartialUpsertMergerFactory.getMerger(defaultPartialUpsertStrategy));
+      }
+    }
+  }
+
+  public void addNewColumn(String columnName, UpsertConfig.Strategy defaultPartialUpsertStrategy) {
+    if (defaultPartialUpsertStrategy != null) {
+      _column2Mergers.computeIfAbsent(columnName, x -> PartialUpsertMergerFactory.getMerger(defaultPartialUpsertStrategy));
+    }
+  }
+
+  public void addNewColumns(Schema schema, UpsertConfig.Strategy defaultPartialUpsertStrategy,
+      String comparisonColumn) {
+    // For all physical columns (including date time columns) except for primary key columns and comparison column.
+    // If no comparison column is configured, use main time column as the comparison time.
+    for (String columnName : schema.getPhysicalColumnNames()) {
+      if (!schema.getPrimaryKeyColumns().contains(columnName) && !_column2Mergers.containsKey(columnName)
+          && !comparisonColumn.equals(columnName)) {
+        _column2Mergers.computeIfAbsent(columnName, x -> PartialUpsertMergerFactory.getMerger(defaultPartialUpsertStrategy));
       }
     }
   }

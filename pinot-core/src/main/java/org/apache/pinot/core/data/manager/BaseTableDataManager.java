@@ -169,6 +169,11 @@ public abstract class BaseTableDataManager implements TableDataManager {
   protected abstract void doInit();
 
   @Override
+  public void preReload(TableConfig tableConfig, Schema schema) {
+
+  }
+
+  @Override
   public void start() {
     _logger.info("Starting table data manager for table: {}", _tableNameWithType);
     doStart();

@@ -192,6 +192,18 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   }
 
   @Override
+  public void preReload(TableConfig tableConfig, Schema schema) {
+    if (_tableUpsertMetadataManager != null) {
+      try {
+        _tableUpsertMetadataManager.close();
+      } catch (IOException e) {
+        _logger.warn("Cannot close upsert metadata manager properly for table: {}", _tableNameWithType, e);
+      }
+    }
+    _tableUpsertMetadataManager = TableUpsertMetadataManagerFactory.create(tableConfig, schema, this, _serverMetrics);
+  }
+
+  @Override
   protected void doStart() {
   }
 

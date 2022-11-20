@@ -296,6 +296,7 @@ public class HelixInstanceDataManager implements InstanceDataManager {
     tableDataManager.preReload(tableConfig, schema);
     List<SegmentMetadata> segmentsMetadata = getAllSegmentsMetadata(tableNameWithType);
     reloadSegmentsWithMetadata(tableNameWithType, segmentsMetadata, forceDownload, segmentRefreshSemaphore);
+    tableDataManager.postReload(tableConfig, schema);
   }
 
   @Override

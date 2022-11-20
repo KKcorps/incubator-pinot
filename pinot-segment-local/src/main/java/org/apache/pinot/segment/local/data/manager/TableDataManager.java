@@ -71,6 +71,13 @@ public interface TableDataManager {
   void preReload(TableConfig tableConfig, Schema schema);
 
   /**
+   * Trigger
+   * @param tableConfig
+   * @param schema
+   */
+  void postReload(TableConfig tableConfig, Schema schema);
+
+  /**
    * Adds a loaded immutable segment into the table.
    */
   void addSegment(ImmutableSegment immutableSegment);

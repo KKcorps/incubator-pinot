@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
@@ -112,11 +113,16 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
 
   private final AtomicBoolean _allSegmentsLoaded = new AtomicBoolean();
 
+  private TableUpsertMetadataManager _prevTableUpsertMetadataManager;
   private TableDedupMetadataManager _tableDedupMetadataManager;
-  private TableUpsertMetadataManager _tableUpsertMetadataManager;
+  private volatile TableUpsertMetadataManager _tableUpsertMetadataManager;
+
+  private AtomicReferenceFieldUpdater<RealtimeTableDataManager, TableUpsertMetadataManager> UPDATER;
 
   public RealtimeTableDataManager(Semaphore segmentBuildSemaphore) {
     _segmentBuildSemaphore = segmentBuildSemaphore;
+    UPDATER =
+        AtomicReferenceFieldUpdater.newUpdater(RealtimeTableDataManager.class, TableUpsertMetadataManager.class, "_tableUpsertMetadataManager");
   }
 
   @Override
@@ -193,14 +199,32 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
 
   @Override
   public void preReload(TableConfig tableConfig, Schema schema) {
-    if (_tableUpsertMetadataManager != null) {
+    TableUpsertMetadataManager snapshot;
+    TableUpsertMetadataManager replacement;
+    do {
+      _prevTableUpsertMetadataManager = _tableUpsertMetadataManager;
+      snapshot = _tableUpsertMetadataManager;
+      replacement = TableUpsertMetadataManagerFactory.create(tableConfig, schema, this, _serverMetrics);
+    } while (!UPDATER.compareAndSet(this, snapshot, replacement));
+
+//    if (replacement != null) {
+//      try {
+//        replacement.close();
+//      } catch (IOException e) {
+//        _logger.warn("Cannot close upsert metadata manager properly for table: {}", _tableNameWithType, e);
+//      }
+//    }
+  }
+
+  @Override
+  public void postReload(TableConfig tableConfig, Schema schema) {
+    if (_prevTableUpsertMetadataManager != null) {
       try {
-        _tableUpsertMetadataManager.close();
+        _prevTableUpsertMetadataManager.close();
       } catch (IOException e) {
         _logger.warn("Cannot close upsert metadata manager properly for table: {}", _tableNameWithType, e);
       }
     }
-    _tableUpsertMetadataManager = TableUpsertMetadataManagerFactory.create(tableConfig, schema, this, _serverMetrics);
   }
 
   @Override

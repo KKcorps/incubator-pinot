@@ -162,7 +162,7 @@ public class QueryExecutorTest {
 
   @Test
   public void testCountQuery() {
-    String query = "SELECT COUNT(*) FROM " + RAW_TABLE_NAME;
+    String query = "SELECT COUNT(*) FROM " + OFFLINE_TABLE_NAME;
     InstanceRequest instanceRequest = new InstanceRequest(0L, CalciteSqlCompiler.compileToBrokerRequest(query));
     instanceRequest.setSearchSegments(_segmentNames);
     InstanceResponseBlock instanceResponse = _queryExecutor.execute(getQueryRequest(instanceRequest), QUERY_RUNNERS);
@@ -172,7 +172,7 @@ public class QueryExecutorTest {
 
   @Test
   public void testSumQuery() {
-    String query = "SELECT SUM(met) FROM " + RAW_TABLE_NAME;
+    String query = "SELECT SUM(met) FROM " + OFFLINE_TABLE_NAME;
     InstanceRequest instanceRequest = new InstanceRequest(0L, CalciteSqlCompiler.compileToBrokerRequest(query));
     instanceRequest.setSearchSegments(_segmentNames);
     InstanceResponseBlock instanceResponse = _queryExecutor.execute(getQueryRequest(instanceRequest), QUERY_RUNNERS);
@@ -182,7 +182,7 @@ public class QueryExecutorTest {
 
   @Test
   public void testMaxQuery() {
-    String query = "SELECT MAX(met) FROM " + RAW_TABLE_NAME;
+    String query = "SELECT MAX(met) FROM " + OFFLINE_TABLE_NAME;
     InstanceRequest instanceRequest = new InstanceRequest(0L, CalciteSqlCompiler.compileToBrokerRequest(query));
     instanceRequest.setSearchSegments(_segmentNames);
     InstanceResponseBlock instanceResponse = _queryExecutor.execute(getQueryRequest(instanceRequest), QUERY_RUNNERS);
@@ -192,7 +192,7 @@ public class QueryExecutorTest {
 
   @Test
   public void testMinQuery() {
-    String query = "SELECT MIN(met) FROM " + RAW_TABLE_NAME;
+    String query = "SELECT MIN(met) FROM " + OFFLINE_TABLE_NAME;
     InstanceRequest instanceRequest = new InstanceRequest(0L, CalciteSqlCompiler.compileToBrokerRequest(query));
     instanceRequest.setSearchSegments(_segmentNames);
     InstanceResponseBlock instanceResponse = _queryExecutor.execute(getQueryRequest(instanceRequest), QUERY_RUNNERS);

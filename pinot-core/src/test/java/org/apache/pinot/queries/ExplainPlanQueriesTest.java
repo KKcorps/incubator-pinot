@@ -81,6 +81,7 @@ import org.testng.annotations.Test;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+
 public class ExplainPlanQueriesTest extends BaseQueriesTest {
   private static final File INDEX_DIR = new File(FileUtils.getTempDirectory(), "ExplainPlanQueriesTest");
   private static final String QUERY_EXECUTOR_CONFIG_PATH = "conf/query-executor.properties";
@@ -123,9 +124,10 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
       .addSingleValueDimension(COL1_JSON_INDEX, FieldSpec.DataType.JSON)
       .addSingleValueDimension(COL1_TEXT_INDEX, FieldSpec.DataType.STRING).build();
 
-  private static final DataSchema DATA_SCHEMA = new DataSchema(new String[]{"Operator", "Operator_Id", "Parent_Id"},
-      new DataSchema.ColumnDataType[]{DataSchema.ColumnDataType.STRING, DataSchema.ColumnDataType.INT,
-          DataSchema.ColumnDataType.INT});
+  private static final DataSchema DATA_SCHEMA =
+      new DataSchema(new String[]{"Operator", "Operator_Id", "Parent_Id"}, new DataSchema.ColumnDataType[]{
+          DataSchema.ColumnDataType.STRING, DataSchema.ColumnDataType.INT, DataSchema.ColumnDataType.INT
+      });
 
   private static final TableConfig TABLE_CONFIG =
       new TableConfigBuilder(TableType.OFFLINE).setTableName(RAW_TABLE_NAME).build();
@@ -153,10 +155,9 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     return _indexSegments;
   }
 
-  GenericRow createMockRecord(int noIndexCol1, int noIndexCol2, int noIndexCol3,
-      boolean noIndexCol4, double invertedIndexCol1, int invertedIndexCol2, String intervedIndexCol3,
-      double rangeIndexCol1, int rangeIndexCol2, int rangeIndexCol3, double sortedIndexCol1, String jsonIndexCol1,
-      String textIndexCol1) {
+  GenericRow createMockRecord(int noIndexCol1, int noIndexCol2, int noIndexCol3, boolean noIndexCol4,
+      double invertedIndexCol1, int invertedIndexCol2, String intervedIndexCol3, double rangeIndexCol1,
+      int rangeIndexCol2, int rangeIndexCol3, double sortedIndexCol1, String jsonIndexCol1, String textIndexCol1) {
 
     GenericRow record = new GenericRow();
     record.putValue(COL1_NO_INDEX, noIndexCol1);
@@ -356,32 +357,39 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelect() {
     // All segment plans for these queries generate a plan using the MatchAllFilterOperator as these queries select
     // columns without filtering
-    String query1 = "EXPLAIN PLAN FOR SELECT * FROM testTable";
+    String query1 = "EXPLAIN PLAN FOR SELECT * FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{
         "SELECT(selectList:invertedIndexCol1, invertedIndexCol2, invertedIndexCol3, jsonIndexCol1, "
             + "noIndexCol1, noIndexCol2, noIndexCol3, noIndexCol4, rangeIndexCol1, rangeIndexCol2, rangeIndexCol3, "
-            + "sortedIndexCol1, textIndexCol1)", 3, 2});
-    result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, invertedIndexCol3, "
-        + "jsonIndexCol1, noIndexCol1, noIndexCol2, noIndexCol3, noIndexCol4, rangeIndexCol1, rangeIndexCol2, "
-        + "rangeIndexCol3, sortedIndexCol1, textIndexCol1)", 4, 3});
-    result1.add(new Object[]{"PROJECT(noIndexCol4, sortedIndexCol1, noIndexCol3, rangeIndexCol1, rangeIndexCol2, "
-        + "invertedIndexCol1, noIndexCol2, invertedIndexCol2, noIndexCol1, rangeIndexCol3, textIndexCol1, "
-        + "jsonIndexCol1, invertedIndexCol3)", 5, 4});
+            + "sortedIndexCol1, textIndexCol1)", 3, 2
+    });
+    result1.add(new Object[]{
+        "TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, invertedIndexCol3, "
+            + "jsonIndexCol1, noIndexCol1, noIndexCol2, noIndexCol3, noIndexCol4, rangeIndexCol1, rangeIndexCol2, "
+            + "rangeIndexCol3, sortedIndexCol1, textIndexCol1)", 4, 3
+    });
+    result1.add(new Object[]{
+        "PROJECT(noIndexCol4, sortedIndexCol1, noIndexCol3, rangeIndexCol1, rangeIndexCol2, "
+            + "invertedIndexCol1, noIndexCol2, invertedIndexCol2, noIndexCol1, rangeIndexCol3, textIndexCol1, "
+            + "jsonIndexCol1, invertedIndexCol3)", 5, 4
+    });
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 = "EXPLAIN PLAN FOR SELECT 'mickey' FROM testTable";
+    String query2 = "EXPLAIN PLAN FOR SELECT 'mickey' FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:'mickey')", 3, 2});
     result2.add(new Object[]{"TRANSFORM('mickey')", 4, 3});
     result2.add(new Object[]{"PROJECT()", 5, 4});
@@ -389,12 +397,13 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result2.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
-    String query3 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM testTable LIMIT 100";
+    String query3 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME + " LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -402,12 +411,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result3.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
-    String query4 = "EXPLAIN PLAN FOR SELECT DISTINCT invertedIndexCol1, noIndexCol1 FROM testTable LIMIT 100";
+    String query4 =
+        "EXPLAIN PLAN FOR SELECT DISTINCT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME + " LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_DISTINCT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"DISTINCT(keyColumns:invertedIndexCol1, noIndexCol1)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -420,32 +431,39 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectVerbose() {
     // All segment plans for these queries generate a plan using the MatchAllFilterOperator as these queries select
     // columns without filtering
-    String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT * FROM testTable";
+    String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT * FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{
         "SELECT(selectList:invertedIndexCol1, invertedIndexCol2, invertedIndexCol3, jsonIndexCol1, "
             + "noIndexCol1, noIndexCol2, noIndexCol3, noIndexCol4, rangeIndexCol1, rangeIndexCol2, rangeIndexCol3, "
-            + "sortedIndexCol1, textIndexCol1)", 3, 2});
-    result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, invertedIndexCol3, "
-        + "jsonIndexCol1, noIndexCol1, noIndexCol2, noIndexCol3, noIndexCol4, rangeIndexCol1, rangeIndexCol2, "
-        + "rangeIndexCol3, sortedIndexCol1, textIndexCol1)", 4, 3});
-    result1.add(new Object[]{"PROJECT(noIndexCol4, sortedIndexCol1, noIndexCol3, rangeIndexCol1, rangeIndexCol2, "
-        + "invertedIndexCol1, noIndexCol2, invertedIndexCol2, noIndexCol1, rangeIndexCol3, textIndexCol1, "
-        + "jsonIndexCol1, invertedIndexCol3)", 5, 4});
+            + "sortedIndexCol1, textIndexCol1)", 3, 2
+    });
+    result1.add(new Object[]{
+        "TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, invertedIndexCol3, "
+            + "jsonIndexCol1, noIndexCol1, noIndexCol2, noIndexCol3, noIndexCol4, rangeIndexCol1, rangeIndexCol2, "
+            + "rangeIndexCol3, sortedIndexCol1, textIndexCol1)", 4, 3
+    });
+    result1.add(new Object[]{
+        "PROJECT(noIndexCol4, sortedIndexCol1, noIndexCol3, rangeIndexCol1, rangeIndexCol2, "
+            + "invertedIndexCol1, noIndexCol2, invertedIndexCol2, noIndexCol1, rangeIndexCol3, textIndexCol1, "
+            + "jsonIndexCol1, invertedIndexCol3)", 5, 4
+    });
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT 'mickey' FROM testTable";
+    String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT 'mickey' FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:'mickey')", 3, 2});
     result2.add(new Object[]{"TRANSFORM('mickey')", 4, 3});
     result2.add(new Object[]{"PROJECT()", 5, 4});
@@ -453,13 +471,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result2.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
-    String query3 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM "
-        + "testTable LIMIT 100";
+    String query3 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME
+            + " LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -467,13 +487,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result3.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
-    String query4 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT DISTINCT invertedIndexCol1, noIndexCol1 "
-        + "FROM testTable LIMIT 100";
+    String query4 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT DISTINCT invertedIndexCol1, noIndexCol1 " + "FROM "
+            + OFFLINE_TABLE_NAME + " LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_DISTINCT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"DISTINCT(keyColumns:invertedIndexCol1, noIndexCol1)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -486,12 +508,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectTransformFunction() {
     // All segment plans for these queries generate a plan using the MatchAllFilterOperator as these queries select
     // columns without filtering and apply transforms
-    String query1 = "EXPLAIN PLAN FOR SELECT CASE WHEN noIndexCol1 < 10 THEN 'less' ELSE 'more' END  FROM testTable";
+    String query1 =
+        "EXPLAIN PLAN FOR SELECT CASE WHEN noIndexCol1 < 10 THEN 'less' ELSE 'more' END  FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:case(less_than(noIndexCol1,'10'),'less','more'))", 3, 2});
     result1.add(new Object[]{"TRANSFORM(case(less_than(noIndexCol1,'10'),'less','more'))", 4, 3});
     result1.add(new Object[]{"PROJECT(noIndexCol1)", 5, 4});
@@ -499,12 +523,13 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 = "EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') FROM testTable";
+    String query2 = "EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:concat(textIndexCol1,textIndexCol1,':'))", 3, 2});
     result2.add(new Object[]{"TRANSFORM(concat(textIndexCol1,textIndexCol1,':'))", 4, 3});
     result2.add(new Object[]{"PROJECT(textIndexCol1)", 5, 4});
@@ -518,12 +543,13 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // All segment plans for these queries generate a plan using the MatchAllFilterOperator as these queries select
     // columns without filtering and apply transforms
     String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT CASE WHEN noIndexCol1 < 10 THEN 'less' "
-        + "ELSE 'more' END  FROM testTable";
+        + "ELSE 'more' END  FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:case(less_than(noIndexCol1,'10'),'less','more'))", 3, 2});
     result1.add(new Object[]{"TRANSFORM(case(less_than(noIndexCol1,'10'),'less','more'))", 4, 3});
     result1.add(new Object[]{"PROJECT(noIndexCol1)", 5, 4});
@@ -531,13 +557,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') "
-        + "FROM testTable";
+    String query2 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') " + "FROM "
+            + OFFLINE_TABLE_NAME;
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:concat(textIndexCol1,textIndexCol1,':'))", 3, 2});
     result2.add(new Object[]{"TRANSFORM(concat(textIndexCol1,textIndexCol1,':'))", 4, 3});
     result2.add(new Object[]{"PROJECT(textIndexCol1)", 5, 4});
@@ -550,14 +578,16 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectOrderBy() {
     // All segment plans for these queries generate a plan using the MatchAllFilterOperator as these queries select
     // columns without filtering and apply transforms along with order by
-    String query1 = "EXPLAIN PLAN FOR SELECT CASE WHEN noIndexCol1 < 10 THEN 'less' ELSE 'more' END  FROM testTable "
-        + "ORDER BY 1";
+    String query1 =
+        "EXPLAIN PLAN FOR SELECT CASE WHEN noIndexCol1 < 10 THEN 'less' ELSE 'more' END  FROM " + OFFLINE_TABLE_NAME
+            + " " + "ORDER BY 1";
     List<Object[]> result1 = new ArrayList<>();
-    result1
-        .add(new Object[]{"BROKER_REDUCE(sort:[case(less_than(noIndexCol1,'10'),'less','more') ASC],limit:10)", 1, 0});
+    result1.add(
+        new Object[]{"BROKER_REDUCE(sort:[case(less_than(noIndexCol1,'10'),'less','more') ASC],limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT_ORDERBY", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT_ORDERBY(selectList:case(less_than(noIndexCol1,'10'),'less','more'))", 3, 2});
     result1.add(new Object[]{"TRANSFORM(case(less_than(noIndexCol1,'10'),'less','more'))", 4, 3});
     result1.add(new Object[]{"PROJECT(noIndexCol1)", 5, 4});
@@ -565,12 +595,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 = "EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') FROM testTable ORDER BY 1 DESC";
+    String query2 = "EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') FROM " + OFFLINE_TABLE_NAME
+        + " ORDER BY 1 DESC";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(sort:[concat(textIndexCol1,textIndexCol1,':') DESC],limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT_ORDERBY", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT_ORDERBY(selectList:concat(textIndexCol1,textIndexCol1,':'))", 3, 2});
     result2.add(new Object[]{"TRANSFORM(concat(textIndexCol1,textIndexCol1,':'))", 4, 3});
     result2.add(new Object[]{"PROJECT(textIndexCol1)", 5, 4});
@@ -584,13 +616,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // All segment plans for these queries generate a plan using the MatchAllFilterOperator as these queries select
     // columns without filtering and apply transforms along with order by
     String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT CASE WHEN noIndexCol1 < 10 THEN 'less' ELSE "
-        + "'more' END  FROM testTable ORDER BY 1";
+        + "'more' END  FROM " + OFFLINE_TABLE_NAME + " ORDER BY 1";
     List<Object[]> result1 = new ArrayList<>();
-    result1
-        .add(new Object[]{"BROKER_REDUCE(sort:[case(less_than(noIndexCol1,'10'),'less','more') ASC],limit:10)", 1, 0});
+    result1.add(
+        new Object[]{"BROKER_REDUCE(sort:[case(less_than(noIndexCol1,'10'),'less','more') ASC],limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT_ORDERBY", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT_ORDERBY(selectList:case(less_than(noIndexCol1,'10'),'less','more'))", 3, 2});
     result1.add(new Object[]{"TRANSFORM(case(less_than(noIndexCol1,'10'),'less','more'))", 4, 3});
     result1.add(new Object[]{"PROJECT(noIndexCol1)", 5, 4});
@@ -598,13 +631,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') "
-        + "FROM testTable ORDER BY 1 DESC ";
+    String query2 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT CONCAT(textIndexCol1, textIndexCol1, ':') " + "FROM "
+            + OFFLINE_TABLE_NAME + " ORDER BY 1 DESC ";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(sort:[concat(textIndexCol1,textIndexCol1,':') DESC],limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT_ORDERBY", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT_ORDERBY(selectList:concat(textIndexCol1,textIndexCol1,':'))", 3, 2});
     result2.add(new Object[]{"TRANSFORM(concat(textIndexCol1,textIndexCol1,':'))", 4, 3});
     result2.add(new Object[]{"PROJECT(textIndexCol1)", 5, 4});
@@ -619,14 +654,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // MatchAllFilterOperator is returned for all segments because the predicate `sortedIndexCol1 != 5` is true for all
     // values across all segments. The FILTER_OR doesn't show up in the plan because the other two OR predicates are
     // not true and removed from the query plan.
-    String query1 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2, sortedIndexCol1 FROM testTable WHERE sortedIndexCol1 = 1.5"
-            + " OR sortedIndexCol1 != 5 OR sortedIndexCol1 IN (10, 20, 30) LIMIT 100";
+    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2, sortedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE sortedIndexCol1 = 1.5" + " OR sortedIndexCol1 != 5 OR sortedIndexCol1 IN (10, 20, 30) LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, noIndexCol2, sortedIndexCol1)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, sortedIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(sortedIndexCol1, noIndexCol2, noIndexCol1)", 5, 4});
@@ -635,24 +670,24 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
     // The FILTER_AND is part of the query plan for all segments as both predicates are expressions
-    String query2 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2 FROM testTable WHERE DIV(noIndexCol1, noIndexCol2) BETWEEN "
-            + "10 AND 20 AND invertedIndexCol1 * 5 < 1000";
+    String query2 = "EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE DIV(noIndexCol1, noIndexCol2) BETWEEN " + "10 AND 20 AND invertedIndexCol1 * 5 < 1000";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, noIndexCol2)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2)", 4, 3});
     result2.add(new Object[]{"PROJECT(noIndexCol2, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_AND", 7, 6});
+    result2.add(new Object[]{
+        "FILTER_EXPRESSION(operator:RANGE,predicate:div(noIndexCol1,noIndexCol2) BETWEEN '10' AND '20')", 8, 7
+    });
     result2.add(
-        new Object[]{"FILTER_EXPRESSION(operator:RANGE,predicate:div(noIndexCol1,noIndexCol2) BETWEEN '10' AND '20')",
-            8, 7});
-    result2
-        .add(new Object[]{"FILTER_EXPRESSION(operator:RANGE,predicate:times(invertedIndexCol1,'5') < '1000')", 9, 7});
+        new Object[]{"FILTER_EXPRESSION(operator:RANGE,predicate:times(invertedIndexCol1,'5') < '1000')", 9, 7});
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // All segments have a match for noIndexCol2 'between 2 and 101'
@@ -660,14 +695,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // one of the rows for noIndexCol1. Due to this the three segments for which noIndexCol1 > 1 is true for all rows,
     // a MatchAllFilterOperator plan is returned. For the other segment, the actual FILTER_OR query plan is returned.
     // Since verbose mode is turned off, the deepest plan is returned which is the FILTER_OR query plan in this case.
-    String query3 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM testTable WHERE noIndexCol1 > 1 OR noIndexCol2"
-            + " BETWEEN 2 AND 101 LIMIT 100";
+    String query3 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE noIndexCol1 > 1 OR noIndexCol2" + " BETWEEN 2 AND 101 LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -682,13 +717,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // one of the rows for noIndexCol1. Due to this the three segments for which noIndexCol1 > 1 is true for all rows,
     // a MatchAllFilterOperator plan is returned. For the other segment, the actual FILTER_OR query plan is returned.
     // Since verbose mode is turned off, the deepest plan is returned which is the FILTER_OR query plan in this case.
-    String query4 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM testTable WHERE noIndexCol1 > 1 OR "
-        + "contains(textIndexCol1, 'daff') OR noIndexCol2 BETWEEN 2 AND 101 LIMIT 100";
+    String query4 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE noIndexCol1 > 1 OR " + "contains(textIndexCol1, 'daff') OR noIndexCol2 BETWEEN 2 AND 101 LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -700,12 +736,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     check(query4, new ResultTable(DATA_SCHEMA, result4));
 
     // All segments match for a full scan since noIndexCol4 has at least one row value set to 'true' across all segments
-    String query5 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM testTable WHERE noIndexCol4 LIMIT 100";
+    String query5 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE noIndexCol4 LIMIT 100";
     List<Object[]> result5 = new ArrayList<>();
     result5.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result5.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result5.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result5.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result5.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result5.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result5.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -715,21 +753,24 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
 
     // The FILTER_AND is part of the query plan for all segments as the first predicate is an expression and the second
     // has at least one matching row in each segment
-    String query6 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM testTable WHERE startsWith "
-        + "(textIndexCol1, 'daff') AND noIndexCol4";
+    String query6 =
+        "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME + " WHERE startsWith "
+            + "(textIndexCol1, 'daff') AND noIndexCol4";
     List<Object[]> result6 = new ArrayList<>();
     result6.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result6.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result6.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result6.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result6.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result6.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result6.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
     result6.add(new Object[]{"DOC_ID_SET", 6, 5});
     result6.add(new Object[]{"FILTER_AND", 7, 6});
     result6.add(new Object[]{"FILTER_FULL_SCAN(operator:EQ,predicate:noIndexCol4 = 'true')", 8, 7});
-    result6.add(new Object[]{"FILTER_EXPRESSION(operator:EQ,predicate:startswith(textIndexCol1,'daff') = 'true')", 9,
-        7});
+    result6.add(new Object[]{
+        "FILTER_EXPRESSION(operator:EQ,predicate:startswith(textIndexCol1,'daff') = 'true')", 9, 7
+    });
     check(query6, new ResultTable(DATA_SCHEMA, result6));
   }
 
@@ -741,13 +782,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // not true and removed from the query plan.
     String query1 =
         "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2, sortedIndexCol1 FROM "
-            + "testTable WHERE sortedIndexCol1 = 1.5 OR sortedIndexCol1 != 5 OR sortedIndexCol1 IN (10, 20, 30) "
-            + "LIMIT 100";
+            + OFFLINE_TABLE_NAME
+            + " WHERE sortedIndexCol1 = 1.5 OR sortedIndexCol1 != 5 OR sortedIndexCol1 IN (10, 20, 30) " + "LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, noIndexCol2, sortedIndexCol1)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, sortedIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(sortedIndexCol1, noIndexCol2, noIndexCol1)", 5, 4});
@@ -757,23 +799,24 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
 
     // The FILTER_AND is part of the query plan for all segments as both predicates are expressions
     String query2 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2 FROM testTable WHERE "
-            + "DIV(noIndexCol1, noIndexCol2) BETWEEN 10 AND 20 AND invertedIndexCol1 * 5 < 1000";
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "DIV(noIndexCol1, noIndexCol2) BETWEEN 10 AND 20 AND invertedIndexCol1 * 5 < 1000";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, noIndexCol2)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2)", 4, 3});
     result2.add(new Object[]{"PROJECT(noIndexCol2, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_AND", 7, 6});
+    result2.add(new Object[]{
+        "FILTER_EXPRESSION(operator:RANGE,predicate:div(noIndexCol1,noIndexCol2) BETWEEN '10' AND '20')", 8, 7
+    });
     result2.add(
-        new Object[]{"FILTER_EXPRESSION(operator:RANGE,predicate:div(noIndexCol1,noIndexCol2) BETWEEN '10' AND '20')",
-            8, 7});
-    result2
-        .add(new Object[]{"FILTER_EXPRESSION(operator:RANGE,predicate:times(invertedIndexCol1,'5') < '1000')", 9, 7});
+        new Object[]{"FILTER_EXPRESSION(operator:RANGE,predicate:times(invertedIndexCol1,'5') < '1000')", 9, 7});
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // All segments have a match for noIndexCol2 'between 2 and 101'
@@ -781,13 +824,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // one of the rows for noIndexCol1. Due to this the three segments for which noIndexCol1 > 1 is true for all rows,
     // a MatchAllFilterOperator plan is returned. For the other segment, the actual FILTER_OR query plan is returned.
     String query3 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM testTable "
-            + "WHERE noIndexCol1 > 1 OR noIndexCol2 BETWEEN 2 AND 101 LIMIT 100";
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+            + " " + "WHERE noIndexCol1 > 1 OR noIndexCol2 BETWEEN 2 AND 101 LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -795,8 +839,9 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result3.add(new Object[]{"FILTER_OR", 7, 6});
     result3.add(new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:noIndexCol1 > '1')", 8, 7});
     result3.add(new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:noIndexCol2 BETWEEN '2' AND '101')", 9, 7});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -808,14 +853,16 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segments 2, 3, 4 don't have a single value of noIndexCol1 as less than 1, whereas segment 1 has a 0 as
     // one of the rows for noIndexCol1. Due to this the three segments for which noIndexCol1 > 1 is true for all rows,
     // a MatchAllFilterOperator plan is returned. For the other segment, the actual FILTER_OR query plan is returned.
-    String query4 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM "
-        + "testTable WHERE noIndexCol1 > 1 OR contains(textIndexCol1, 'daff') OR noIndexCol2 BETWEEN 2 AND 101 "
-        + "LIMIT 100";
+    String query4 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE noIndexCol1 > 1 OR contains(textIndexCol1, 'daff') OR noIndexCol2 BETWEEN 2 AND 101 "
+            + "LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -824,8 +871,9 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result4.add(new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:noIndexCol1 > '1')", 8, 7});
     result4.add(new Object[]{"FILTER_EXPRESSION(operator:EQ,predicate:contains(textIndexCol1,'daff') = 'true')", 9, 7});
     result4.add(new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:noIndexCol2 BETWEEN '2' AND '101')", 10, 7});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -834,13 +882,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     check(query4, new ResultTable(DATA_SCHEMA, result4));
 
     // All segments match since noIndexCol4 has at least one row value set to 'true' across all segments
-    String query5 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM "
-        + "testTable WHERE noIndexCol4 LIMIT 100 ";
+    String query5 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE noIndexCol4 LIMIT 100 ";
     List<Object[]> result5 = new ArrayList<>();
     result5.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result5.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result5.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result5.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result5.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result5.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result5.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -850,21 +900,24 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
 
     // The FILTER_AND is part of the query plan for all segments as the first predicate is an expression and the second
     // has at least one matching row in each segment
-    String query6 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM "
-        + "testTable WHERE startsWith (textIndexCol1, 'daff') AND noIndexCol4";
+    String query6 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE startsWith (textIndexCol1, 'daff') AND noIndexCol4";
     List<Object[]> result6 = new ArrayList<>();
     result6.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result6.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result6.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result6.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result6.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1)", 3, 2});
     result6.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result6.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
     result6.add(new Object[]{"DOC_ID_SET", 6, 5});
     result6.add(new Object[]{"FILTER_AND", 7, 6});
     result6.add(new Object[]{"FILTER_FULL_SCAN(operator:EQ,predicate:noIndexCol4 = 'true')", 8, 7});
-    result6.add(new Object[]{"FILTER_EXPRESSION(operator:EQ,predicate:startswith(textIndexCol1,'daff') = 'true')", 9,
-        7});
+    result6.add(new Object[]{
+        "FILTER_EXPRESSION(operator:EQ,predicate:startswith(textIndexCol1,'daff') = 'true')", 9, 7
+    });
     check(query6, new ResultTable(DATA_SCHEMA, result6));
   }
 
@@ -875,72 +928,87 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 3 results in an EmptyFilterOperator as the invertedIndexCol1 doesn't have the value 1.1 in it
     // and this is an AND predicate, but the values are within range
     // Since verbose mode is disabled, the non-EmptyFilterOperator plan is returned.
-    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, sortedIndexCol1 FROM testTable WHERE "
-        + "invertedIndexCol1 = 1.1 AND sortedIndexCol1 = 100.1 LIMIT 100";
+    String query1 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, sortedIndexCol1 FROM " + OFFLINE_TABLE_NAME + " WHERE "
+            + "invertedIndexCol1 = 1.1 AND sortedIndexCol1 = 100.1 LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, sortedIndexCol1)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, sortedIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(sortedIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
     result1.add(new Object[]{"FILTER_AND", 7, 6});
     result1.add(new Object[]{
-        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.1')", 8, 7});
-    result1.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,"
-        + "predicate:invertedIndexCol1 = '1.1')", 9, 7});
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.1')", 8, 7
+    });
+    result1.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ," + "predicate:invertedIndexCol1 = '1.1')", 9, 7
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
     // Segments 1, 2, 4 result in a FILTER_OR plan which matches all the segments and all four predicates.
     // Segment 3 removes the OR clause for 'invertedIndexCol1 = 1.1' since that segment doesn't have this value for any
     // of its rows.
     // The deepest plan is returned which matches the former which matches three segments and has four OR predicates
-    String query2 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, sortedIndexCol1  FROM testTable WHERE "
-        + "(invertedIndexCol1 = 1.1 OR sortedIndexCol1 = 100.2) OR (invertedIndexCol1 BETWEEN 0.2 AND 5 OR "
-        + "rangeIndexCol1 > 20)";
+    String query2 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, sortedIndexCol1  FROM " + OFFLINE_TABLE_NAME
+            + " WHERE "
+            + "(invertedIndexCol1 = 1.1 OR sortedIndexCol1 = 100.2) OR (invertedIndexCol1 BETWEEN 0.2 AND 5 OR "
+            + "rangeIndexCol1 > 20)";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, sortedIndexCol1)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, sortedIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(sortedIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_OR", 7, 6});
-    result2.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,"
-        + "predicate:invertedIndexCol1 = '1.1')", 8, 7});
     result2.add(new Object[]{
-        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.2')", 9, 7});
-    result2
-        .add(new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:invertedIndexCol1 BETWEEN '0.2' AND '5')", 10, 7});
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ," + "predicate:invertedIndexCol1 = '1.1')", 8, 7
+    });
     result2.add(new Object[]{
-        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > " + "'20')", 11, 7});
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.2')", 9, 7
+    });
+    result2.add(
+        new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:invertedIndexCol1 BETWEEN '0.2' AND '5')", 10, 7});
+    result2.add(new Object[]{
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > " + "'20')", 11, 7
+    });
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // Segments 2, 3, 4 result in a MatchAllOperator because 'invertedIndexCol3 NOT IN ('foo', 'mickey')' matches all
     // the rows in these segments.
     // Segment 1 does contain 'mickey' and two predicates of the OR are part of the query plan.
     // Since verbose mode is disabled The FILTER_OR plan is returned as it's the deepest.
-    String query3 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM testTable WHERE invertedIndexCol1 = 1.5 OR "
-            + "invertedIndexCol2 IN (1, 2, 30) OR invertedIndexCol3 NOT IN ('foo', 'mickey') LIMIT 100";
+    String query3 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.5 OR "
+        + "invertedIndexCol2 IN (1, 2, 30) OR invertedIndexCol3 NOT IN ('foo', 'mickey') LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{"FILTER_OR", 7, 6});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:IN,"
-        + "predicate:invertedIndexCol2 IN ('1','2','30'))", 8, 7});
-    result3.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:NOT_IN,"
-        + "predicate:invertedIndexCol3 NOT IN ('foo','mickey'))", 9, 7});
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:IN,"
+            + "predicate:invertedIndexCol2 IN ('1','2','30'))", 8, 7
+    });
+    result3.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:NOT_IN,"
+            + "predicate:invertedIndexCol3 NOT IN ('foo','mickey'))", 9, 7
+    });
     check(query3, new ResultTable(DATA_SCHEMA, result3));
   }
 
@@ -951,23 +1019,28 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 3 results in an EmptyFilterOperator as the invertedIndexCol1 doesn't have the value 1.1 in it
     // and this is an AND predicate, but the values are within range
     String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "sortedIndexCol1 FROM testTable WHERE invertedIndexCol1 = 1.1 AND sortedIndexCol1 = 100.1 LIMIT 100";
+        + "sortedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.1 AND sortedIndexCol1 = 100.1 LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, sortedIndexCol1)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, sortedIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(sortedIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
     result1.add(new Object[]{"FILTER_AND", 7, 6});
     result1.add(new Object[]{
-        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.1')", 8, 7});
-    result1.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,"
-        + "predicate:invertedIndexCol1 = '1.1')", 9, 7});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.1')", 8, 7
+    });
+    result1.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ," + "predicate:invertedIndexCol1 = '1.1')", 9, 7
+    });
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, sortedIndexCol1)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, sortedIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(sortedIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -979,65 +1052,79 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 3 removes the OR clause for 'invertedIndexCol1 = 1.1' since that segment doesn't have this value for any
     // of its rows.
     String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "sortedIndexCol1  FROM testTable WHERE (invertedIndexCol1 = 1.1 OR sortedIndexCol1 = 100.2) OR "
+        + "sortedIndexCol1  FROM " + OFFLINE_TABLE_NAME
+        + " WHERE (invertedIndexCol1 = 1.1 OR sortedIndexCol1 = 100.2) OR "
         + "(invertedIndexCol1 BETWEEN 0.2 AND 5 OR rangeIndexCol1 > 20)";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, sortedIndexCol1)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, sortedIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(sortedIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_OR", 7, 6});
-    result2.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,"
-        + "predicate:invertedIndexCol1 = '1.1')", 8, 7});
     result2.add(new Object[]{
-        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.2')", 9, 7});
-    result2
-        .add(new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:invertedIndexCol1 BETWEEN '0.2' AND '5')", 10, 7});
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ," + "predicate:invertedIndexCol1 = '1.1')", 8, 7
+    });
     result2.add(new Object[]{
-        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > " + "'20')", 11, 7});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 = " + "'100.2')", 9, 7
+    });
+    result2.add(
+        new Object[]{"FILTER_FULL_SCAN(operator:RANGE,predicate:invertedIndexCol1 BETWEEN '0.2' AND '5')", 10, 7});
+    result2.add(new Object[]{
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > " + "'20')", 11, 7
+    });
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, sortedIndexCol1)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, sortedIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(sortedIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_OR", 7, 6});
-    result2.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 "
-        + "= '100.2')", 8, 7});
     result2.add(new Object[]{
-        "FILTER_FULL_SCAN(operator:RANGE,predicate:invertedIndexCol1 BETWEEN '0.2' AND '5')", 9, 7});
-    result2
-        .add(new Object[]{"FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > "
-            + "'20')", 10, 7});
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:sortedIndexCol1 " + "= '100.2')", 8, 7
+    });
+    result2.add(new Object[]{
+        "FILTER_FULL_SCAN(operator:RANGE,predicate:invertedIndexCol1 BETWEEN '0.2' AND '5')", 9, 7
+    });
+    result2.add(new Object[]{
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > " + "'20')", 10, 7
+    });
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // Segments 2, 3, 4 result in a MatchAllOperator because 'invertedIndexCol3 NOT IN ('foo', 'mickey')' matches all
     // the rows in these segments.
     // Segment 1 does contain 'mickey' and two predicates of the OR are part of the query plan.
     String query3 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM testTable WHERE "
-            + "invertedIndexCol1 = 1.5 OR invertedIndexCol2 IN (1, 2, 30) OR invertedIndexCol3 NOT IN "
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "invertedIndexCol1 = 1.5 OR invertedIndexCol2 IN (1, 2, 30) OR invertedIndexCol3 NOT IN "
             + "('foo', 'mickey') LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{"FILTER_OR", 7, 6});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:IN,"
-        + "predicate:invertedIndexCol2 IN ('1','2','30'))", 8, 7});
-    result3.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:NOT_IN,"
-        + "predicate:invertedIndexCol3 NOT IN ('foo','mickey'))", 9, 7});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:IN,"
+            + "predicate:invertedIndexCol2 IN ('1','2','30'))", 8, 7
+    });
+    result3.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:NOT_IN,"
+            + "predicate:invertedIndexCol3 NOT IN ('foo','mickey'))", 9, 7
+    });
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1051,14 +1138,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectColumnUsingFilterOnRangeIndexColumn() {
     // select * query triggering range index
     // checks using RANGE (>, >=, <, <=, BETWEEN ..) on a column with range index should use RANGE_INDEX_SCAN
-    String query1 =
-        "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1, rangeIndexCol1 FROM testTable WHERE rangeIndexCol1 >"
-            + " 10.1 AND rangeIndexCol2 >= 15 OR rangeIndexCol3 BETWEEN 21 AND 45 LIMIT 100";
+    String query1 = "EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1, rangeIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE rangeIndexCol1 >" + " 10.1 AND rangeIndexCol2 >= 15 OR rangeIndexCol3 BETWEEN 21 AND 45 LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1, rangeIndexCol1)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, rangeIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(rangeIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1066,11 +1153,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result1.add(new Object[]{"FILTER_OR", 7, 6});
     result1.add(new Object[]{"FILTER_AND", 8, 7});
     result1.add(new Object[]{
-        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > '10" + ".1')", 9, 8});
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > '10" + ".1')", 9, 8
+    });
     result1.add(new Object[]{
-        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol2 >= " + "'15')", 10, 8});
-    result1.add(new Object[]{"FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol3 "
-        + "BETWEEN '21' AND '45')", 11, 7});
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol2 >= " + "'15')", 10, 8
+    });
+    result1.add(new Object[]{
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol3 "
+            + "BETWEEN '21' AND '45')", 11, 7
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
   }
 
@@ -1081,13 +1172,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // checks using RANGE (>, >=, <, <=, BETWEEN ..) on a column with range index should use RANGE_INDEX_SCAN
     String query1 =
         "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol1, noIndexCol1, rangeIndexCol1 FROM "
-            + "testTable WHERE rangeIndexCol1 > 10.1 AND rangeIndexCol2 >= 15 OR rangeIndexCol3 BETWEEN 21 AND 45 "
+            + OFFLINE_TABLE_NAME
+            + " WHERE rangeIndexCol1 > 10.1 AND rangeIndexCol2 >= 15 OR rangeIndexCol3 BETWEEN 21 AND 45 "
             + "LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:invertedIndexCol1, noIndexCol1, rangeIndexCol1)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1, rangeIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(rangeIndexCol1, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1095,20 +1188,23 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     result1.add(new Object[]{"FILTER_OR", 7, 6});
     result1.add(new Object[]{"FILTER_AND", 8, 7});
     result1.add(new Object[]{
-        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > '10" + ".1')", 9, 8});
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol1 > '10" + ".1')", 9, 8
+    });
     result1.add(new Object[]{
-        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol2 >= " + "'15')", 10, 8});
-    result1.add(new Object[]{"FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol3 "
-        + "BETWEEN '21' AND '45')", 11, 7});
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol2 >= " + "'15')", 10, 8
+    });
+    result1.add(new Object[]{
+        "FILTER_RANGE_INDEX(indexLookUp:range_index,operator:RANGE,predicate:rangeIndexCol3 "
+            + "BETWEEN '21' AND '45')", 11, 7
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
   }
 
   @Test
   public void testSelectAggregateUsingFilterOnTextIndexColumn() {
     // All segments match the same plan for these queries
-    String query1 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2, max(noIndexCol2), min(noIndexCol3) FROM testTable WHERE "
-            + "TEXT_MATCH(textIndexCol1, 'foo') GROUP BY noIndexCol1, noIndexCol2";
+    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2, max(noIndexCol2), min(noIndexCol3) FROM "
+        + OFFLINE_TABLE_NAME + " WHERE " + "TEXT_MATCH(textIndexCol1, 'foo') GROUP BY noIndexCol1, noIndexCol2";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
@@ -1126,10 +1222,10 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, max(noIndexCol2) AS mymax, min(noIndexCol3) AS mymin FROM testTable "
-            + "WHERE TEXT_MATCH (textIndexCol1, 'foo') GROUP BY noIndexCol1, noIndexCol2 ORDER BY noIndexCol1, max"
-            + "(noIndexCol2)";
+    String query2 = "EXPLAIN PLAN FOR SELECT noIndexCol1, max(noIndexCol2) AS mymax, min(noIndexCol3) AS mymin FROM "
+        + OFFLINE_TABLE_NAME + " "
+        + "WHERE TEXT_MATCH (textIndexCol1, 'foo') GROUP BY noIndexCol1, noIndexCol2 ORDER BY noIndexCol1, max"
+        + "(noIndexCol2)";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(sort:[noIndexCol1 ASC, max(noIndexCol2) ASC],limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
@@ -1151,42 +1247,46 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   @Test
   public void testSelectAggregateUsingFilterOnTextIndexColumnVerbose() {
     // All segments match the same plan for these queries
-    String query1 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2, max(noIndexCol2), "
-            + "min(noIndexCol3) FROM testTable WHERE TEXT_MATCH(textIndexCol1, 'foo') GROUP BY noIndexCol1, "
-            + "noIndexCol2";
+    String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, noIndexCol2, max(noIndexCol2), "
+        + "min(noIndexCol3) FROM " + OFFLINE_TABLE_NAME
+        + " WHERE TEXT_MATCH(textIndexCol1, 'foo') GROUP BY noIndexCol1, " + "noIndexCol2";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
     result1.add(new Object[]{
-        "GROUP_BY(groupKeys:noIndexCol1, noIndexCol2, aggregations:max(noIndexCol2), min"
-            + "(noIndexCol3))", 3, 2});
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
+    result1.add(new Object[]{
+        "GROUP_BY(groupKeys:noIndexCol1, noIndexCol2, aggregations:max(noIndexCol2), min" + "(noIndexCol3))", 3, 2
+    });
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, noIndexCol3)", 4, 3});
     result1.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result1.add(new Object[]{"FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
-        + "(textIndexCol1,'foo'))", 7, 6});
+    result1.add(new Object[]{
+        "FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
+            + "(textIndexCol1,'foo'))", 7, 6
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
-    String query2 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, max(noIndexCol2) AS mymax, "
-            + "min(noIndexCol3) AS mymin FROM testTable WHERE TEXT_MATCH (textIndexCol1, 'foo') GROUP BY "
-            + "noIndexCol1, noIndexCol2 ORDER BY noIndexCol1, max(noIndexCol2)";
+    String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, max(noIndexCol2) AS mymax, "
+        + "min(noIndexCol3) AS mymin FROM " + OFFLINE_TABLE_NAME + " WHERE TEXT_MATCH (textIndexCol1, 'foo') GROUP BY "
+        + "noIndexCol1, noIndexCol2 ORDER BY noIndexCol1, max(noIndexCol2)";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(sort:[noIndexCol1 ASC, max(noIndexCol2) ASC],limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
     result2.add(new Object[]{
-        "GROUP_BY(groupKeys:noIndexCol1, noIndexCol2, aggregations:max(noIndexCol2), min"
-            + "(noIndexCol3))", 3, 2});
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
+    result2.add(new Object[]{
+        "GROUP_BY(groupKeys:noIndexCol1, noIndexCol2, aggregations:max(noIndexCol2), min" + "(noIndexCol3))", 3, 2
+    });
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, noIndexCol3)", 4, 3});
     result2.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result2.add(new Object[]{"FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
-        + "(textIndexCol1,'foo'))", 7, 6});
+    result2.add(new Object[]{
+        "FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
+            + "(textIndexCol1,'foo'))", 7, 6
+    });
     check(query2, new ResultTable(DATA_SCHEMA, result2));
   }
 
@@ -1195,24 +1295,29 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2, 3, 4 don't match 'noIndexCol1 NOT IN (1, 20, 30)' so they return a plan without this OR predicate
     // Segments 1 matches all three predicates so returns a plan with all three
     // The plan with the deepest tree is returned which matches segment 1 as verbose mode is disabled
-    String query =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM testTable WHERE (invertedIndexCol1 IN (10, 20, "
-            + "30) AND sortedIndexCol1 != 100) OR (noIndexCol1 NOT IN (1, 20, 30) AND rangeIndexCol1 != 20 AND "
-            + "JSON_MATCH(jsonIndexCol1, 'key=1') AND TEXT_MATCH(textIndexCol1, 'foo'))";
+    String query = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE (invertedIndexCol1 IN (10, 20, "
+        + "30) AND sortedIndexCol1 != 100) OR (noIndexCol1 NOT IN (1, 20, 30) AND rangeIndexCol1 != 20 AND "
+        + "JSON_MATCH(jsonIndexCol1, 'key=1') AND TEXT_MATCH(textIndexCol1, 'foo'))";
     List<Object[]> result = new ArrayList<>();
     result.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
     result.add(new Object[]{"DOC_ID_SET", 6, 5});
     result.add(new Object[]{"FILTER_AND", 7, 6});
-    result.add(new Object[]{"FILTER_JSON_INDEX(indexLookUp:json_index,operator:JSON_MATCH,predicate:json_match"
-        + "(jsonIndexCol1,'key=1'))", 8, 7});
-    result.add(new Object[]{"FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
-        + "(textIndexCol1,'foo'))", 9, 7});
+    result.add(new Object[]{
+        "FILTER_JSON_INDEX(indexLookUp:json_index,operator:JSON_MATCH,predicate:json_match"
+            + "(jsonIndexCol1,'key=1'))", 8, 7
+    });
+    result.add(new Object[]{
+        "FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
+            + "(textIndexCol1,'foo'))", 9, 7
+    });
     result.add(new Object[]{"FILTER_FULL_SCAN(operator:NOT_IN,predicate:noIndexCol1 NOT IN ('1','20','30'))", 10, 7});
     check(query, new ResultTable(DATA_SCHEMA, result));
   }
@@ -1222,35 +1327,46 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2, 3, 4 don't match 'noIndexCol1 NOT IN (1, 20, 30)' so they return a plan without this OR predicate
     // Segments 1 matches all three predicates so returns a plan with all three
     String query =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM testTable "
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1 FROM " + OFFLINE_TABLE_NAME
+            + " "
             + "WHERE (invertedIndexCol1 IN (10, 20, 30) AND sortedIndexCol1 != 100) OR (noIndexCol1 NOT IN (1, 20, "
             + "30) AND rangeIndexCol1 != 20 AND JSON_MATCH(jsonIndexCol1, 'key=1') AND TEXT_MATCH(textIndexCol1, "
             + "'foo'))";
     List<Object[]> result = new ArrayList<>();
     result.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
     result.add(new Object[]{"DOC_ID_SET", 6, 5});
     result.add(new Object[]{"FILTER_AND", 7, 6});
-    result.add(new Object[]{"FILTER_JSON_INDEX(indexLookUp:json_index,operator:JSON_MATCH,predicate:json_match"
-        + "(jsonIndexCol1,'key=1'))", 8, 7});
-    result.add(new Object[]{"FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
-        + "(textIndexCol1,'foo'))", 9, 7});
-    result.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result.add(new Object[]{
+        "FILTER_JSON_INDEX(indexLookUp:json_index,operator:JSON_MATCH,predicate:json_match"
+            + "(jsonIndexCol1,'key=1'))", 8, 7
+    });
+    result.add(new Object[]{
+        "FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
+            + "(textIndexCol1,'foo'))", 9, 7
+    });
+    result.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1)", 3, 2});
     result.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, noIndexCol1)", 4, 3});
     result.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1)", 5, 4});
     result.add(new Object[]{"DOC_ID_SET", 6, 5});
     result.add(new Object[]{"FILTER_AND", 7, 6});
-    result.add(new Object[]{"FILTER_JSON_INDEX(indexLookUp:json_index,operator:JSON_MATCH,predicate:json_match"
-        + "(jsonIndexCol1,'key=1'))", 8, 7});
-    result.add(new Object[]{"FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
-        + "(textIndexCol1,'foo'))", 9, 7});
+    result.add(new Object[]{
+        "FILTER_JSON_INDEX(indexLookUp:json_index,operator:JSON_MATCH,predicate:json_match"
+            + "(jsonIndexCol1,'key=1'))", 8, 7
+    });
+    result.add(new Object[]{
+        "FILTER_TEXT_INDEX(indexLookUp:text_index,operator:TEXT_MATCH,predicate:text_match"
+            + "(textIndexCol1,'foo'))", 9, 7
+    });
     result.add(new Object[]{"FILTER_FULL_SCAN(operator:NOT_IN,predicate:noIndexCol1 NOT IN ('1','20','30'))", 10, 7});
     check(query, new ResultTable(DATA_SCHEMA, result));
   }
@@ -1261,73 +1377,85 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 3 matches a row for '1.5' even though 'pluto' doesn't exist
     // Segment 1, 4 don't contain either '1.5' or 'pluto' but are within range so they return an EmptyFilter
     // The plan for segment 3 is returned as it has precedence and verbose mode is disabled
-    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM testTable WHERE "
-        + "invertedIndexCol1 = 1.5 OR invertedIndexCol3 = 'pluto' LIMIT 100";
+    String query1 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "invertedIndexCol1 = 1.5 OR invertedIndexCol3 = 'pluto' LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result1.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '1.5')", 7, 6});
+    result1.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '1.5')", 7, 6
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
     // Segment 1 matches both OR predicates so returns a FILTER_OR tree
     // Segment 3 doesn't contain 'mickey' or '1.1' and returns an EmptyFilter as '1.1' is within range
     // Segment 2, 4 do contain 1.1 but don't contain 'mickey' so part of the OR predicate is removed
     // The deepest tree with FILTER_OR is returned as it has precedence and verbose mode is disabled
-    String query2 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM testTable WHERE "
-        + "invertedIndexCol1 = 1.1 OR invertedIndexCol3 = 'mickey' LIMIT 100";
+    String query2 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "invertedIndexCol1 = 1.1 OR invertedIndexCol3 = 'mickey' LIMIT 100";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_OR", 7, 6});
-    result2.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '1.1')", 8, 7});
-    result2.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3"
-        + " = 'mickey')", 9, 7});
+    result2.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '1.1')", 8, 7
+    });
+    result2.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3" + " = 'mickey')", 9, 7
+    });
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // An OR query that matches all predicates on all segments
-    String query3 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol2 FROM testTable WHERE "
-        + "invertedIndexCol1 = 0.1 OR invertedIndexCol2 = 2 LIMIT 100";
+    String query3 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol2 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "invertedIndexCol1 = 0.1 OR invertedIndexCol2 = 2 LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol2)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1, invertedIndexCol2)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{"FILTER_OR", 7, 6});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '0.1')", 8, 7});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2"
-        + " = '2')", 9, 7});
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '0.1')", 8, 7
+    });
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2" + " = '2')", 9, 7
+    });
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
     // Segment 2 matches all on the 'pluto' predicate
     // Segments 1, 3 get pruned as '8' and 'pluto' are out of range
     // Segment 4 returns EmptyFilterOperator as though '8' is out of range, 'pluto' is within range but not present
     // The MatchAll plan is returned as it has precedence and verbose mode is disabled
-    String query4 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM testTable WHERE "
+    String query4 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME + " WHERE "
         + "invertedIndexCol3 = 'pluto' OR noIndexCol1 = 8 LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3, noIndexCol1)", 5, 4});
@@ -1342,27 +1470,32 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 3 matches a row for '1.5' even though 'pluto' doesn't exist
     // Segment 1, 4 don't contain either '1.5' or 'pluto' but are within range so they return an EmptyFilter
     String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "invertedIndexCol3 FROM testTable WHERE invertedIndexCol1 = 1.5 OR invertedIndexCol3 = 'pluto' LIMIT 100";
+        + "invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.5 OR invertedIndexCol3 = 'pluto' LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result1.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '1.5')", 7, 6});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '1.5')", 7, 6
+    });
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1374,31 +1507,38 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 3 doesn't contain 'mickey' or '1.1' and returns an EmptyFilter as '1.1' is within range
     // Segment 2, 4 do contain 1.1 but don't contain 'mickey' so part of the OR predicate is removed
     String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "invertedIndexCol3 FROM testTable WHERE invertedIndexCol1 = 1.1 OR invertedIndexCol3 = 'mickey' LIMIT 100";
+        + "invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.1 OR invertedIndexCol3 = 'mickey' LIMIT 100";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result2.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '1.1')", 7, 6});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '1.1')", 7, 6
+    });
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_OR", 7, 6});
-    result2.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '1.1')", 8, 7});
-    result2.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3"
-        + " = 'mickey')", 9, 7});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '1.1')", 8, 7
+    });
+    result2.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3" + " = 'mickey')", 9, 7
+    });
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1408,40 +1548,47 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
 
     // An OR query that matches all predicates on all segments
     String query3 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "invertedIndexCol2 FROM testTable WHERE invertedIndexCol1 = 0.1 OR invertedIndexCol2 = 2 LIMIT 100";
+        + "invertedIndexCol2 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 0.1 OR invertedIndexCol2 = 2 LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol2)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1, invertedIndexCol2)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{"FILTER_OR", 7, 6});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '0.1')", 8, 7});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2"
-        + " = '2')", 9, 7});
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '0.1')", 8, 7
+    });
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2" + " = '2')", 9, 7
+    });
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
     // Segment 2 matches all on the 'pluto' predicate
     // Segments 1, 3 get pruned as '8' and 'pluto' are out of range
     // Segment 4 returns EmptyFilterOperator as though '8' is out of range, 'pluto' is within range but not present
-    String query4 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM "
-        + "testTable WHERE invertedIndexCol3 = 'pluto' OR noIndexCol1 = 8 LIMIT 100";
+    String query4 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE invertedIndexCol3 = 'pluto' OR noIndexCol1 = 8 LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3, noIndexCol1)", 5, 4});
     result4.add(new Object[]{"DOC_ID_SET", 6, 5});
     result4.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 7, 6});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3, noIndexCol1)", 5, 4});
@@ -1456,13 +1603,15 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2 has 'pluto' but doesn't have '1.5' so it returns EmptyFilterOperator
     // Segment 3 has '1.5' but doesn't have pluto so it also returns EmptyFilterOperator
     // Return the EmptyFilterOperator plan
-    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM testTable WHERE "
-        + "invertedIndexCol1 = 1.5 AND invertedIndexCol3 = 'pluto' LIMIT 100";
+    String query1 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "invertedIndexCol1 = 1.5 AND invertedIndexCol3 = 'pluto' LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1474,60 +1623,70 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2 is pruned as 'mickey' isn't in range (all values are 'pluto')
     // Segment 3, 4 return an EmptyFilterOperator plan as they contain '1.1' but don't contain 'mickey'
     // Return the FILTER_AND plan as it has precedence and verbose mode is disabled
-    String query2 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM testTable WHERE "
-        + "invertedIndexCol1 = 1.1 AND invertedIndexCol3 = 'mickey' LIMIT 100";
+    String query2 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "invertedIndexCol1 = 1.1 AND invertedIndexCol3 = 'mickey' LIMIT 100";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_AND", 7, 6});
-    result2.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3"
-        + " = 'mickey')", 8, 7});
-    result2.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '1.1')", 9, 7});
+    result2.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3" + " = 'mickey')", 8, 7
+    });
+    result2.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '1.1')", 9, 7
+    });
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // An AND query that matches all predicates on all segments
-    String query3 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol2 FROM testTable WHERE "
-        + "invertedIndexCol1 = 0.1 AND invertedIndexCol2 = 1 LIMIT 100";
+    String query3 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, invertedIndexCol2 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE " + "invertedIndexCol1 = 0.1 AND invertedIndexCol2 = 1 LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol2)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1, invertedIndexCol2)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{"FILTER_AND", 7, 6});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '0.1')", 8, 7});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2"
-        + " = '1')", 9, 7});
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '0.1')", 8, 7
+    });
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2" + " = '1')", 9, 7
+    });
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
     // Segment 2 matches all on the first predicate 'pluto' which is removed from the AND, and matches '8' for the
     // second predicate on one row.
     // Segments 1, 3, 4 are all pruned as '8' is out of range for all and 'pluto' doesn't match either
     // The plan for segment 2 is returned as it has precedence over the others and verbose mode is disabled
-    String query4 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM testTable WHERE "
+    String query4 = "EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME + " WHERE "
         + "invertedIndexCol3 = 'pluto' AND noIndexCol1 = 8 LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3, noIndexCol1)", 5, 4});
     result4.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result4.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:noIndexCol1 = '8')",
-        7, 6});
+    result4.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:noIndexCol1 = '8')", 7, 6
+    });
     check(query4, new ResultTable(DATA_SCHEMA, result4));
   }
 
@@ -1537,12 +1696,14 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2 has 'pluto' but doesn't have '1.5' so it returns EmptyFilterOperator
     // Segment 3 has '1.5' but doesn't have pluto so it also returns EmptyFilterOperator
     String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "invertedIndexCol3 FROM testTable WHERE invertedIndexCol1 = 1.5 AND invertedIndexCol3 = 'pluto' LIMIT 100";
+        + "invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.5 AND invertedIndexCol3 = 'pluto' LIMIT 100";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result1.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1554,23 +1715,28 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2 is pruned as 'mickey' isn't in range (all values are 'pluto')
     // Segment 3, 4 return an EmptyFilterOperator plan as they contain '1.1' but don't contain 'mickey'
     String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "invertedIndexCol3 FROM testTable WHERE invertedIndexCol1 = 1.1 AND invertedIndexCol3 = 'mickey' LIMIT 100";
+        + "invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.1 AND invertedIndexCol3 = 'mickey' LIMIT 100";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result2.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{"FILTER_AND", 7, 6});
-    result2.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3"
-        + " = 'mickey')", 8, 7});
-    result2.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '1.1')", 9, 7});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3" + " = 'mickey')", 8, 7
+    });
+    result2.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '1.1')", 9, 7
+    });
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol3)", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol3, noIndexCol1)", 4, 3});
     result2.add(new Object[]{"PROJECT(invertedIndexCol3, invertedIndexCol1, noIndexCol1)", 5, 4});
@@ -1580,41 +1746,49 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
 
     // An AND query that matches all predicates on all segments
     String query3 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol1, "
-        + "invertedIndexCol2 FROM testTable WHERE invertedIndexCol1 = 0.1 AND invertedIndexCol2 = 1 LIMIT 100";
+        + "invertedIndexCol2 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 0.1 AND invertedIndexCol2 = 1 LIMIT 100";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result3.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol1, invertedIndexCol2)", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol1, invertedIndexCol2, noIndexCol1)", 4, 3});
     result3.add(new Object[]{"PROJECT(invertedIndexCol1, noIndexCol1, invertedIndexCol2)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{"FILTER_AND", 7, 6});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1"
-        + " = '0.1')", 8, 7});
-    result3.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2"
-        + " = '1')", 9, 7});
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1" + " = '0.1')", 8, 7
+    });
+    result3.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2" + " = '1')", 9, 7
+    });
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
     // Segment 2 matches all on the first predicate 'pluto' which is removed from the AND, and matches '8' for the
     // second predicate on one row.
     // Segments 1, 3, 4 are all pruned as '8' is out of range for all and 'pluto' doesn't match either
-    String query4 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM "
-        + "testTable WHERE invertedIndexCol3 = 'pluto' AND noIndexCol1 = 8 LIMIT 100";
+    String query4 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+            + " WHERE invertedIndexCol3 = 'pluto' AND noIndexCol1 = 8 LIMIT 100";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:noIndexCol1, invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3, noIndexCol1)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3, noIndexCol1)", 5, 4});
     result4.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result4.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:noIndexCol1 = '8')",
-        7, 6});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:noIndexCol1 = '8')", 7, 6
+    });
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"ALL_SEGMENTS_PRUNED_ON_SERVER", 3, 2});
     check(query4, new ResultTable(DATA_SCHEMA, result4));
   }
@@ -1623,35 +1797,38 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectAggregate() {
     // All segment plans for this queries generate a plan using the MatchAllFilterOperator as it selects and aggregates
     // columns without filtering
-    String query1 = "EXPLAIN PLAN FOR SELECT count(*) FROM testTable";
+    String query1 = "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 4, 3});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
     // No scan required as metadata is sufficient to answer teh query for all segments
-    String query2 = "EXPLAIN PLAN FOR SELECT min(invertedIndexCol1) FROM testTable";
+    String query2 = "EXPLAIN PLAN FOR SELECT min(invertedIndexCol1) FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"AGGREGATE_NO_SCAN", 3, 2});
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // All segment plans for this queries generate a plan using the MatchAllFilterOperator as it selects and aggregates
     // columns without filtering
-    String query3 =
-        "EXPLAIN PLAN FOR SELECT count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol2) FROM testTable";
+    String query3 = "EXPLAIN PLAN FOR SELECT count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol2) FROM "
+        + OFFLINE_TABLE_NAME;
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result3.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(
         new Object[]{"AGGREGATE(aggregations:count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol2))", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2)", 4, 3});
@@ -1663,14 +1840,17 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // All segment plans for this queries generate a plan using the MatchAllFilterOperator as it selects and aggregates
     // columns without filtering
     String query4 = "EXPLAIN PLAN FOR SELECT sum(add(noIndexCol1, noIndexCol2)), MIN(ADD(DIV(noIndexCol1,noIndexCol2),"
-        + "noIndexCol3)) FROM testTable";
+        + "noIndexCol3)) FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result4.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
-    result4.add(new Object[]{"AGGREGATE(aggregations:sum(add(noIndexCol1,noIndexCol2)), min(add(div(noIndexCol1,"
-        + "noIndexCol2),noIndexCol3)))", 3, 2});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
+    result4.add(new Object[]{
+        "AGGREGATE(aggregations:sum(add(noIndexCol1,noIndexCol2)), min(add(div(noIndexCol1,"
+            + "noIndexCol2),noIndexCol3)))", 3, 2
+    });
     result4.add(
         new Object[]{"TRANSFORM(add(div(noIndexCol1,noIndexCol2),noIndexCol3), add(noIndexCol1,noIndexCol2))", 4, 3});
     result4.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
@@ -1683,23 +1863,26 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectAggregateVerbose() {
     // All segment plans for this queries generate a plan using the MatchAllFilterOperator as it selects and aggregates
     // columns without filtering
-    String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable";
+    String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result1.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 4, 3});
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
     // No scan required as metadata is sufficient to answer teh query for all segments
-    String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT min(invertedIndexCol1) FROM testTable";
+    String query2 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT min(invertedIndexCol1) FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"AGGREGATE_NO_SCAN", 3, 2});
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
@@ -1707,12 +1890,13 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // columns without filtering
     String query3 =
         "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*), max(noIndexCol1), sum(noIndexCol2), "
-            + "avg(noIndexCol2) FROM testTable";
+            + "avg(noIndexCol2) FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result3.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(
         new Object[]{"AGGREGATE(aggregations:count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol2))", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2)", 4, 3});
@@ -1724,14 +1908,17 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // All segment plans for this queries generate a plan using the MatchAllFilterOperator as it selects and aggregates
     // columns without filtering
     String query4 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT sum(add(noIndexCol1, noIndexCol2)), "
-        + "MIN(ADD(DIV(noIndexCol1, noIndexCol2), noIndexCol3)) FROM testTable";
+        + "MIN(ADD(DIV(noIndexCol1, noIndexCol2), noIndexCol3)) FROM " + OFFLINE_TABLE_NAME;
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result4.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
-    result4.add(new Object[]{"AGGREGATE(aggregations:sum(add(noIndexCol1,noIndexCol2)), min(add(div(noIndexCol1,"
-        + "noIndexCol2),noIndexCol3)))", 3, 2});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
+    result4.add(new Object[]{
+        "AGGREGATE(aggregations:sum(add(noIndexCol1,noIndexCol2)), min(add(div(noIndexCol1,"
+            + "noIndexCol2),noIndexCol3)))", 3, 2
+    });
     result4.add(
         new Object[]{"TRANSFORM(add(div(noIndexCol1,noIndexCol2),noIndexCol3), add(noIndexCol1,noIndexCol2))", 4, 3});
     result4.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
@@ -1745,9 +1932,8 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segments 2, 3, 4 are pruned as noIndexCol1's values are all > '3'
     // Segment 1 has values which are < '3' so a FILTER_FULL_SCAN is returned
     // The plan for FILTER_FULL_SCAN is returned as it has precedence over NoMatch and verbose mode is disabled
-    String query1 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol2, sum(add(noIndexCol1, noIndexCol2)), min(noIndexCol3) FROM testTable "
-            + "WHERE noIndexCol1 < 3 GROUP BY noIndexCol2";
+    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol2, sum(add(noIndexCol1, noIndexCol2)), min(noIndexCol3) FROM "
+        + OFFLINE_TABLE_NAME + " " + "WHERE noIndexCol1 < 3 GROUP BY noIndexCol2";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
@@ -1770,7 +1956,7 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 1 has values which are < '3' so a FILTER_FULL_SCAN is returned
     String query1 =
         "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol2, sum(add(noIndexCol1, noIndexCol2)), "
-            + "min(noIndexCol3) FROM testTable WHERE noIndexCol1 < 3 GROUP BY noIndexCol2";
+            + "min(noIndexCol3) FROM " + OFFLINE_TABLE_NAME + " WHERE noIndexCol1 < 3 GROUP BY noIndexCol2";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
@@ -1797,103 +1983,115 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segments 3 and 4 don't contain 'mickey' but 'mickey' is within range so they return EmptyFilterOperator
     // Segment 1 contains 'mickey' so the FILTER_SORTED_INDEX plan is returned for it
     // The non-EmptyFilterOperator plan is returned as it has precedence and verbose mode is disabled
-    String query1 = "EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol3 = 'mickey'";
+    String query1 =
+        "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol3 = 'mickey'";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
-    result1.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 "
-        + "= 'mickey')", 4, 3});
+    result1.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 " + "= 'mickey')", 4, 3
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
     // Segment 2 is pruned because 'mickey' is not within range (and all values in that segment are 'pluto')
     // Segments 3 and 4 don't contain 'mickey' but 'mickey' is within range so they return EmptyFilterOperator
     // Segment 1 contains 'mickey' so the FILTER_SORTED_INDEX plan is returned for it
     // The non-EmptyFilterOperator plan is returned as it has precedence and verbose mode is disabled
-    String query2 = "EXPLAIN PLAN FOR SELECT sum(noIndexCol2) FROM testTable WHERE invertedIndexCol3 = 'mickey'";
+    String query2 =
+        "EXPLAIN PLAN FOR SELECT sum(noIndexCol2) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol3 = 'mickey'";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"AGGREGATE(aggregations:sum(noIndexCol2))", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol2)", 4, 3});
     result2.add(new Object[]{"PROJECT(noIndexCol2)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{
-        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = " + "'mickey')", 7, 6});
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = " + "'mickey')", 7, 6
+    });
     check(query2, new ResultTable(DATA_SCHEMA, result2));
 
     // None of the segments have a value of '20' for the noIndexCol1 so this part of the OR predicate is removed for
     // all segments.
     // Segment 3 doesn't have the value '1.1' for the invertedIndexCol1 due to which one plan shows EmptyFilterOperator
     // The non-EmptyFilterOperator plan is returned as it has precedence and verbose mode is disabled
-    String query3 =
-        "EXPLAIN PLAN FOR SELECT count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol3) FROM testTable WHERE "
-            + "invertedIndexCol1 = 1.1 OR noIndexCol1 = 20";
+    String query3 = "EXPLAIN PLAN FOR SELECT count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol3) FROM "
+        + OFFLINE_TABLE_NAME + " WHERE " + "invertedIndexCol1 = 1.1 OR noIndexCol1 = 20";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result3.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(
         new Object[]{"AGGREGATE(aggregations:count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol3))", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, noIndexCol3)", 4, 3});
     result3.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{
-        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1 = '1"
-            + ".1')", 7, 6});
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1 = '1" + ".1')", 7, 6
+    });
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
     // Use a Transform function in filter on an indexed column.
     // Segment 3 doesn't have the value '1.1' for the invertedIndexCol1 due to which one plan doesn't show the
     // FILTER_OR as that predicate is removed.
     // The deepest tree plan is returned which happens to be the plan with FILTER_OR
-    String query4 = "EXPLAIN PLAN FOR SELECT invertedIndexCol3 FROM testTable WHERE concat (invertedIndexCol3, 'test',"
-        + "'-') = 'mickey-test' OR invertedIndexCol1 = 1.1";
+    String query4 = "EXPLAIN PLAN FOR SELECT invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE concat (invertedIndexCol3, 'test'," + "'-') = 'mickey-test' OR invertedIndexCol1 = 1.1";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3)", 5, 4});
     result4.add(new Object[]{"DOC_ID_SET", 6, 5});
     result4.add(new Object[]{"FILTER_OR", 7, 6});
     result4.add(new Object[]{
-        "FILTER_EXPRESSION(operator:EQ,predicate:concat(invertedIndexCol3,'test','-') = " + "'mickey-test')", 8, 7});
-    result4.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,"
-        + "predicate:invertedIndexCol1 = '1.1')", 9, 7});
+        "FILTER_EXPRESSION(operator:EQ,predicate:concat(invertedIndexCol3,'test','-') = " + "'mickey-test')", 8, 7
+    });
+    result4.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ," + "predicate:invertedIndexCol1 = '1.1')", 9, 7
+    });
     check(query4, new ResultTable(DATA_SCHEMA, result4));
 
     // Segments 1, 2, 4 have an EmptyFilterOperator plan for this query as '1.5' is within the min-max range but
     // doesn't exist as a value in any row
     // Segment 3 contains a row with the value as '1.5' so a FILTERED_INVERTED_INDEX is returned for 1 segment
     String query5 =
-        "EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol1 = 1.5 LIMIT 100";
+        "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol1 = 1.5 LIMIT 100";
     List<Object[]> result5 = new ArrayList<>();
     result5.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result5.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result5.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result5.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result5.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
-    result5.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:"
-        + "invertedIndexCol1 = '1.5')", 4, 3});
+    result5.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:" + "invertedIndexCol1 = '1.5')", 4, 3
+    });
     check(query5, new ResultTable(DATA_SCHEMA, result5));
 
     // All segments have a EmptyFilterOperator plan for this query as '1.7' is within the min-max range but doesn't
     // exist as a value in any row
     String query6 =
-        "EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol1 = 1.7 LIMIT 100";
+        "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol1 = 1.7 LIMIT 100";
     List<Object[]> result6 = new ArrayList<>();
     result6.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result6.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result6.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result6.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result6.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result6.add(new Object[]{"FILTER_EMPTY", 4, 3});
     check(query6, new ResultTable(DATA_SCHEMA, result6));
@@ -1904,12 +2102,13 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Only the MatchAllOperator plan is returned as it has higher precedence than no matching segment and verbose is
     // disabled
     String query7 =
-        "EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol3 = 'pluto' LIMIT 100";
+        "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol3 = 'pluto' LIMIT 100";
     List<Object[]> result7 = new ArrayList<>();
     result7.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result7.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result7.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result7.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result7.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result7.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 4, 3});
     check(query7, new ResultTable(DATA_SCHEMA, result7));
@@ -1918,13 +2117,13 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // The other segments are pruned as '2' is less than the min for these segments
     // Only the EmptyFilterOperator plan is returned as it has higher precedence than no matching segment and verbose
     // is disabled
-    String query8 =
-        "EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE noIndexCol1 = 2 LIMIT 100";
+    String query8 = "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE noIndexCol1 = 2 LIMIT 100";
     List<Object[]> result8 = new ArrayList<>();
     result8.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result8.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result8.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result8.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result8.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result8.add(new Object[]{"FILTER_EMPTY", 4, 3});
     check(query8, new ResultTable(DATA_SCHEMA, result8));
@@ -1936,26 +2135,29 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Only the FILTERED_SORTED_COUNT plan is returned as it has higher precedence than the others and verbose is
     // disabled
     String query9 =
-        "EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol3 = 'pluto' OR "
+        "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol3 = 'pluto' OR "
             + "invertedIndexCol3 = 'minnie' LIMIT 100";
     List<Object[]> result9 = new ArrayList<>();
     result9.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result9.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result9.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result9.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result9.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
-    result9.add(
-        new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = 'minnie')",
-            4, 3});
+    result9.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = 'minnie')", 4, 3
+    });
     check(query9, new ResultTable(DATA_SCHEMA, result9));
 
     // All segments are pruned
-    String query10 = "EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol3 = 'roadrunner' AND "
-        + "noIndexCol1 = 100 LIMIT 100";
+    String query10 =
+        "EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol3 = 'roadrunner' AND "
+            + "noIndexCol1 = 100 LIMIT 100";
     List<Object[]> result10 = new ArrayList<>();
     result10.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
-    result10.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result10.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result10.add(new Object[]{"ALL_SEGMENTS_PRUNED_ON_SERVER", 2, 1});
     check(query10, new ResultTable(DATA_SCHEMA, result10));
   }
@@ -1965,40 +2167,48 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2 is pruned because 'mickey' is not within range (and all values in that segment are 'pluto')
     // Segments 3 and 4 don't contain 'mickey' but 'mickey' is within range so they return EmptyFilterOperator
     // Segment 1 contains 'mickey' so the FILTER_SORTED_INDEX plan is returned for it
-    String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE "
-        + "invertedIndexCol3 = 'mickey'";
+    String query1 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE "
+            + "invertedIndexCol3 = 'mickey'";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result1.add(new Object[]{"FILTER_EMPTY", 4, 3});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result1.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
-    result1.add(new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 "
-        + "= 'mickey')", 4, 3});
+    result1.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 " + "= 'mickey')", 4, 3
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
 
     // Segment 2 is pruned because 'mickey' is not within range (and all values in that segment are 'pluto')
     // Segments 3 and 4 don't contain 'mickey' but 'mickey' is within range so they return EmptyFilterOperator
     // Segment 1 contains 'mickey' so the FILTER_SORTED_INDEX plan is returned for it
-    String query2 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT sum(noIndexCol2) FROM testTable WHERE "
-        + "invertedIndexCol3 = 'mickey'";
+    String query2 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT sum(noIndexCol2) FROM " + OFFLINE_TABLE_NAME + " WHERE "
+            + "invertedIndexCol3 = 'mickey'";
     List<Object[]> result2 = new ArrayList<>();
     result2.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result2.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"AGGREGATE(aggregations:sum(noIndexCol2))", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol2)", 4, 3});
     result2.add(new Object[]{"PROJECT(noIndexCol2)", 5, 4});
     result2.add(new Object[]{"DOC_ID_SET", 6, 5});
     result2.add(new Object[]{
-        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = " + "'mickey')", 7, 6});
-    result2.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = " + "'mickey')", 7, 6
+    });
+    result2.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result2.add(new Object[]{"AGGREGATE(aggregations:sum(noIndexCol2))", 3, 2});
     result2.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol2)", 4, 3});
     result2.add(new Object[]{"PROJECT(noIndexCol2)", 5, 4});
@@ -2011,89 +2221,99 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 3 doesn't have the value '1.1' for the invertedIndexCol1 due to which one plan shows EmptyFilterOperator
     String query3 =
         "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*), max(noIndexCol1), sum(noIndexCol2), "
-            + "avg(noIndexCol3) FROM testTable WHERE invertedIndexCol1 = 1.1 OR noIndexCol1 = 20";
+            + "avg(noIndexCol3) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol1 = 1.1 OR noIndexCol1 = 20";
     List<Object[]> result3 = new ArrayList<>();
     result3.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result3.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(
         new Object[]{"AGGREGATE(aggregations:count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol3))", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, noIndexCol3)", 4, 3});
     result3.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{"FILTER_EMPTY", 7, 6});
-    result3.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result3.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result3.add(
         new Object[]{"AGGREGATE(aggregations:count(*), max(noIndexCol1), sum(noIndexCol2), avg(noIndexCol3))", 3, 2});
     result3.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, noIndexCol3)", 4, 3});
     result3.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
     result3.add(new Object[]{"DOC_ID_SET", 6, 5});
     result3.add(new Object[]{
-        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1 = '1"
-            + ".1')", 7, 6});
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol1 = '1" + ".1')", 7, 6
+    });
     check(query3, new ResultTable(DATA_SCHEMA, result3));
 
     // Use a Transform function in filter on an indexed column.
     // Segment 3 doesn't have the value '1.1' for the invertedIndexCol1 due to which one plan doesn't show the
     // FILTER_OR as that predicate is removed.
-    String query4 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol3 FROM testTable WHERE "
-        + "concat (invertedIndexCol3, 'test', '-') = 'mickey-test' OR invertedIndexCol1 = 1.1";
+    String query4 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT invertedIndexCol3 FROM " + OFFLINE_TABLE_NAME + " WHERE "
+            + "concat (invertedIndexCol3, 'test', '-') = 'mickey-test' OR invertedIndexCol1 = 1.1";
     List<Object[]> result4 = new ArrayList<>();
     result4.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result4.add(new Object[]{"COMBINE_SELECT", 2, 1});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3)", 5, 4});
     result4.add(new Object[]{"DOC_ID_SET", 6, 5});
     result4.add(new Object[]{
-        "FILTER_EXPRESSION(operator:EQ,predicate:concat(invertedIndexCol3,'test','-') = " + "'mickey-test')", 7, 6});
-    result4.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+        "FILTER_EXPRESSION(operator:EQ,predicate:concat(invertedIndexCol3,'test','-') = " + "'mickey-test')", 7, 6
+    });
+    result4.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result4.add(new Object[]{"SELECT(selectList:invertedIndexCol3)", 3, 2});
     result4.add(new Object[]{"TRANSFORM_PASSTHROUGH(invertedIndexCol3)", 4, 3});
     result4.add(new Object[]{"PROJECT(invertedIndexCol3)", 5, 4});
     result4.add(new Object[]{"DOC_ID_SET", 6, 5});
     result4.add(new Object[]{"FILTER_OR", 7, 6});
     result4.add(new Object[]{
-        "FILTER_EXPRESSION(operator:EQ,predicate:concat(invertedIndexCol3,'test','-') = " + "'mickey-test')", 8, 7});
-    result4.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,"
-        + "predicate:invertedIndexCol1 = '1.1')", 9, 7});
+        "FILTER_EXPRESSION(operator:EQ,predicate:concat(invertedIndexCol3,'test','-') = " + "'mickey-test')", 8, 7
+    });
+    result4.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ," + "predicate:invertedIndexCol1 = '1.1')", 9, 7
+    });
     check(query4, new ResultTable(DATA_SCHEMA, result4));
 
     // Segments 1, 2, 4 have an EmptyFilterOperator plan for this query as '1.5' is within the min-max range but
     // doesn't exist as a value in any row
     // Segment 3 contains a row with the value as '1.5' so a FILTERED_INVERTED_INDEX is returned for 1 segment
-    String query5 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol1 = 1.5 "
-            + "LIMIT 100";
+    String query5 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.5 " + "LIMIT 100";
     List<Object[]> result5 = new ArrayList<>();
     result5.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result5.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result5.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result5.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:3)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result5.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result5.add(new Object[]{"FILTER_EMPTY", 4, 3});
-    result5.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result5.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result5.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
-    result5.add(new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:"
-        + "invertedIndexCol1 = '1.5')", 4, 3});
+    result5.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:" + "invertedIndexCol1 = '1.5')", 4, 3
+    });
     check(query5, new ResultTable(DATA_SCHEMA, result5));
 
     // All segments have a EmptyFilterOperator plan for this query as '1.7' is within the min-max range but doesn't
     // exist as a value in any row
-    String query6 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol1 = 1.7 "
-            + "LIMIT 100";
+    String query6 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol1 = 1.7 " + "LIMIT 100";
     List<Object[]> result6 = new ArrayList<>();
     result6.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result6.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result6.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result6.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result6.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result6.add(new Object[]{"FILTER_EMPTY", 4, 3});
     check(query6, new ResultTable(DATA_SCHEMA, result6));
@@ -2101,35 +2321,38 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Ssegments 1 and 3 are pruned because 'pluto' is outside the range of min-max values of these segments
     // Segment 2 has a MatchAllFilterOperator plan as all rows match 'pluto'
     // Segment 4 has an EmptyFilterOperator plan as 'pluto' doesn't exist but is within the value ranges
-    String query7 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol3 = "
-            + "'pluto' LIMIT 100";
+    String query7 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol3 = " + "'pluto' LIMIT 100";
     List<Object[]> result7 = new ArrayList<>();
     result7.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result7.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result7.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result7.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result7.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result7.add(new Object[]{"FILTER_EMPTY", 4, 3});
-    result7.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result7.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result7.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result7.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 4, 3});
     check(query7, new ResultTable(DATA_SCHEMA, result7));
 
     // Segment 1 has an EmptyFilterOperator plan for this query as '2' is within the segment range but not present
     // The other segments are pruned as '2' is less than the min for these segments
-    String query8 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE noIndexCol1 = 2 LIMIT 100";
+    String query8 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME
+        + " WHERE noIndexCol1 = 2 LIMIT 100";
     List<Object[]> result8 = new ArrayList<>();
     result8.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result8.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result8.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result8.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result8.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result8.add(new Object[]{"FILTER_EMPTY", 4, 3});
-    result8.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result8.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:2)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result8.add(new Object[]{"ALL_SEGMENTS_PRUNED_ON_SERVER", 3, 2});
     check(query8, new ResultTable(DATA_SCHEMA, result8));
 
@@ -2137,35 +2360,39 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // Segment 2 has a MatchAllFilterOperator plan as all rows match 'pluto'
     // Segment 3 has a FILTERED_SORTED_COUNT plan as it contains 'minnie'
     // Segment 4 has an EmptyFilterOperator plan as neither 'minnie' nor 'pluto' exists but are within the value ranges
-    String query9 =
-        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE invertedIndexCol3 = "
-            + "'pluto' OR invertedIndexCol3 = 'minnie' LIMIT 100";
+    String query9 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol3 = " + "'pluto' OR invertedIndexCol3 = 'minnie' LIMIT 100";
     List<Object[]> result9 = new ArrayList<>();
     result9.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
     result9.add(new Object[]{"COMBINE_AGGREGATE", 2, 1});
-    result9.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result9.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result9.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
-    result9.add(
-        new Object[]{"FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = 'minnie')",
-            4, 3});
-    result9.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result9.add(new Object[]{
+        "FILTER_SORTED_INDEX(indexLookUp:sorted_index,operator:EQ,predicate:invertedIndexCol3 = 'minnie')", 4, 3
+    });
+    result9.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result9.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result9.add(new Object[]{"FILTER_EMPTY", 4, 3});
-    result9.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result9.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:1)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result9.add(new Object[]{"FAST_FILTERED_COUNT", 3, 2});
     result9.add(new Object[]{"FILTER_MATCH_ENTIRE_SEGMENT(docs:3)", 4, 3});
     check(query9, new ResultTable(DATA_SCHEMA, result9));
 
     // All segments are pruned
-    String query10 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM testTable WHERE "
-        + "invertedIndexCol3 = 'roadrunner' AND noIndexCol1 = 100 LIMIT 100";
+    String query10 =
+        "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT count(*) FROM " + OFFLINE_TABLE_NAME + " WHERE "
+            + "invertedIndexCol3 = 'roadrunner' AND noIndexCol1 = 100 LIMIT 100";
     List<Object[]> result10 = new ArrayList<>();
     result10.add(new Object[]{"BROKER_REDUCE(limit:100)", 1, 0});
-    result10.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
+    result10.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
     result10.add(new Object[]{"ALL_SEGMENTS_PRUNED_ON_SERVER", 2, 1});
     check(query10, new ResultTable(DATA_SCHEMA, result10));
   }
@@ -2173,22 +2400,24 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   @Test
   public void testSelectAggregateUsingFilterIndexGroupBy() {
     // All segments match this query as '1' is present in all segments
-    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol1, max(noIndexCol2), min(noIndexCol3) FROM testTable WHERE "
-        + "invertedIndexCol2 = 1 GROUP BY noIndexCol1";
+    String query1 =
+        "EXPLAIN PLAN FOR SELECT noIndexCol1, max(noIndexCol2), min(noIndexCol3) FROM " + OFFLINE_TABLE_NAME + " WHERE "
+            + "invertedIndexCol2 = 1 GROUP BY noIndexCol1";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
     result1.add(new Object[]{
-        "GROUP_BY(groupKeys:noIndexCol1, aggregations:max(noIndexCol2), min(noIndexCol3)"
-            + ")", 3, 2});
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
+    result1.add(new Object[]{
+        "GROUP_BY(groupKeys:noIndexCol1, aggregations:max(noIndexCol2), min(noIndexCol3)" + ")", 3, 2
+    });
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, noIndexCol3)", 4, 3});
     result1.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result1.add(
-        new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2 = '1')",
-            7, 6});
+    result1.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2 = '1')", 7, 6
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
   }
 
@@ -2196,45 +2425,49 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectAggregateUsingFilterIndexGroupByVerbose() {
     // All segments match this query as '1' is present in all segments
     String query1 = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, max(noIndexCol2), "
-        + "min(noIndexCol3) FROM testTable WHERE invertedIndexCol2 = 1 GROUP BY noIndexCol1";
+        + "min(noIndexCol3) FROM " + OFFLINE_TABLE_NAME + " WHERE invertedIndexCol2 = 1 GROUP BY noIndexCol1";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(new Object[]{"BROKER_REDUCE(limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
     result1.add(new Object[]{
-        "GROUP_BY(groupKeys:noIndexCol1, aggregations:max(noIndexCol2), min(noIndexCol3)"
-            + ")", 3, 2});
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
+    result1.add(new Object[]{
+        "GROUP_BY(groupKeys:noIndexCol1, aggregations:max(noIndexCol2), min(noIndexCol3)" + ")", 3, 2
+    });
     result1.add(new Object[]{"TRANSFORM_PASSTHROUGH(noIndexCol1, noIndexCol2, noIndexCol3)", 4, 3});
     result1.add(new Object[]{"PROJECT(noIndexCol3, noIndexCol2, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
-    result1.add(
-        new Object[]{"FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2 = '1')",
-            7, 6});
+    result1.add(new Object[]{
+        "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:EQ,predicate:invertedIndexCol2 = '1')", 7, 6
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
   }
 
   @Test
   public void testSelectAggregateUsingFilterIndexGroupByOrderBy() {
     // All segments match this query as '1' is present in all segments but not for all rows
-    String query1 =
-        "EXPLAIN PLAN FOR SELECT noIndexCol1, concat(invertedIndexCol3, 'test', '-'), count(*) FROM testTable WHERE "
-            + "invertedIndexCol2 != 1 GROUP BY noIndexCol1, concat(invertedIndexCol3, 'test', '-') ORDER BY "
-            + "noIndexCol1, concat(invertedIndexCol3, 'test', '-')";
+    String query1 = "EXPLAIN PLAN FOR SELECT noIndexCol1, concat(invertedIndexCol3, 'test', '-'), count(*) FROM "
+        + OFFLINE_TABLE_NAME + " WHERE "
+        + "invertedIndexCol2 != 1 GROUP BY noIndexCol1, concat(invertedIndexCol3, 'test', '-') ORDER BY "
+        + "noIndexCol1, concat(invertedIndexCol3, 'test', '-')";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(
         new Object[]{"BROKER_REDUCE(sort:[noIndexCol1 ASC, concat(invertedIndexCol3,'test','-') ASC],limit:10)", 1, 0});
     result1.add(new Object[]{"COMBINE_GROUP_BY", 2, 1});
-    result1.add(new Object[]{"PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS,
-        ExplainPlanRows.PLAN_START_IDS});
-    result1.add(new Object[]{"GROUP_BY(groupKeys:noIndexCol1, concat(invertedIndexCol3,'test','-'), "
-        + "aggregations:count(*))", 3, 2});
+    result1.add(new Object[]{
+        "PLAN_START(numSegmentsForThisPlan:4)", ExplainPlanRows.PLAN_START_IDS, ExplainPlanRows.PLAN_START_IDS
+    });
+    result1.add(new Object[]{
+        "GROUP_BY(groupKeys:noIndexCol1, concat(invertedIndexCol3,'test','-'), " + "aggregations:count(*))", 3, 2
+    });
     result1.add(new Object[]{"TRANSFORM(concat(invertedIndexCol3,'test','-'), noIndexCol1)", 4, 3});
     result1.add(new Object[]{"PROJECT(invertedIndexCol3, noIndexCol1)", 5, 4});
     result1.add(new Object[]{"DOC_ID_SET", 6, 5});
     result1.add(new Object[]{
         "FILTER_INVERTED_INDEX(indexLookUp:inverted_index,operator:NOT_EQ,predicate:invertedIndexCol2 !="
-            + " '1')", 7, 6});
+            + " '1')", 7, 6
+    });
     check(query1, new ResultTable(DATA_SCHEMA, result1));
   }
 
@@ -2243,7 +2476,8 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
     // All segments match this query as '1' is present in all segments but not for all rows
     String query1 =
         "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT noIndexCol1, concat(invertedIndexCol3, 'test', '-'), "
-            + "count(*) FROM testTable WHERE invertedIndexCol2 != 1 GROUP BY noIndexCol1, concat(invertedIndexCol3, "
+            + "count(*) FROM " + OFFLINE_TABLE_NAME
+            + " WHERE invertedIndexCol2 != 1 GROUP BY noIndexCol1, concat(invertedIndexCol3, "
             + "'test', '-') ORDER BY noIndexCol1, concat(invertedIndexCol3, 'test', '-')";
     List<Object[]> result1 = new ArrayList<>();
     result1.add(
@@ -2267,8 +2501,9 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   @Test
   public void testSelectAggregateUsingFilterIndexGroupByHaving() {
     // All segments match this query as '1' is present in all segments
-    String query = "EXPLAIN PLAN FOR SELECT max(noIndexCol1), min(noIndexCol2), noIndexCol3 FROM testTable WHERE "
-        + "invertedIndexCol2 = 1 GROUP BY noIndexCol3 HAVING max(noIndexCol1) > 2 ORDER BY max(noIndexCol1) DESC";
+    String query =
+        "EXPLAIN PLAN FOR SELECT max(noIndexCol1), min(noIndexCol2), noIndexCol3 FROM " + OFFLINE_TABLE_NAME + " WHERE "
+            + "invertedIndexCol2 = 1 GROUP BY noIndexCol3 HAVING max(noIndexCol1) > 2 ORDER BY max(noIndexCol1) DESC";
     List<Object[]> result = new ArrayList<>();
     result.add(
         new Object[]{"BROKER_REDUCE(havingFilter:max(noIndexCol1) > '2',sort:[max(noIndexCol1) DESC],limit:10)", 1, 0});
@@ -2292,7 +2527,8 @@ public class ExplainPlanQueriesTest extends BaseQueriesTest {
   public void testSelectAggregateUsingFilterIndexGroupByHavingVerbose() {
     // All segments match this query as '1' is present in all segments
     String query = "SET explainPlanVerbose=true; EXPLAIN PLAN FOR SELECT max(noIndexCol1), min(noIndexCol2), "
-        + "noIndexCol3 FROM testTable WHERE invertedIndexCol2 = 1 GROUP BY noIndexCol3 HAVING max(noIndexCol1) > "
+        + "noIndexCol3 FROM " + OFFLINE_TABLE_NAME
+        + " WHERE invertedIndexCol2 = 1 GROUP BY noIndexCol3 HAVING max(noIndexCol1) > "
         + "2 ORDER BY max(noIndexCol1) DESC";
     List<Object[]> result = new ArrayList<>();
     result.add(

@@ -94,6 +94,8 @@ public class PinotServiceManager {
         String serverStarterClassName = (String) properties
             .getOrDefault(CommonConstants.Helix.CONFIG_OF_PINOT_SERVER_STARTABLE_CLASS,
                 HelixServerStarter.class.getName());
+        boolean relaxPropertyNames = Boolean.parseBoolean((String)
+            properties.getOrDefault("relaxPropertyNames", "true"));
         return startServer(serverStarterClassName, new PinotConfiguration(properties));
       case MINION:
         String minionStarterClassName = (String) properties

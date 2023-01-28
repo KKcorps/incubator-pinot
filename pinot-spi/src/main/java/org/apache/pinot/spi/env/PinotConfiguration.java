@@ -111,6 +111,10 @@ public class PinotConfiguration {
     _configuration = new CompositeConfiguration(computeConfigurationsFromSources(baseConfiguration, new HashMap<>()));
   }
 
+  public PinotConfiguration(Configuration baseConfiguration, boolean relaxPropertyNames) {
+    _configuration = new CompositeConfiguration(computeConfigurationsFromSources(baseConfiguration, new HashMap<>()));
+  }
+
   /**
    * Creates a new instance with existing properties provided through a map.
    *
@@ -147,6 +151,25 @@ public class PinotConfiguration {
   private static List<Configuration> computeConfigurationsFromSources(Configuration baseConfiguration,
       Map<String, String> environmentVariables) {
     return computeConfigurationsFromSources(relaxConfigurationKeys(baseConfiguration), environmentVariables);
+  }
+
+  private static List<Configuration> computeConfigurationsFromSources(Map<String, Object> baseProperties,
+      Map<String, String> environmentVariables, boolean relaxPropertNames) {
+    Map<String, Object> relaxedBaseProperties = relaxProperties(baseProperties);
+    Map<String, String> relaxedEnvVariables = relaxEnvironmentVariables(environmentVariables);
+
+    Stream<Configuration> propertiesFromConfigPaths = Stream
+        .of(Optional.ofNullable(relaxedBaseProperties.get(CONFIG_PATHS_KEY)).map(Object::toString),
+            Optional.ofNullable(relaxedEnvVariables.get(CONFIG_PATHS_KEY)))
+
+        .filter(Optional::isPresent).map(Optional::get)
+
+        .flatMap(configPaths -> Arrays.stream(configPaths.split(",")))
+
+        .map(PinotConfiguration::loadProperties);
+
+    return Stream.concat(Stream.of(relaxedBaseProperties, relaxedEnvVariables).map(MapConfiguration::new),
+        propertiesFromConfigPaths).collect(Collectors.toList());
   }
 
   private static List<Configuration> computeConfigurationsFromSources(Map<String, Object> baseProperties,

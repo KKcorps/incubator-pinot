@@ -22,7 +22,9 @@ import com.google.common.base.Preconditions;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.pinot.spi.auth.AuthProvider;
@@ -98,6 +100,15 @@ public class Quickstart extends QuickStartBase {
 
   protected int getNumQuickstartRunnerServers() {
     return 1;
+  }
+
+  @Override
+  public Map<String, Object> getConfigOverrides() {
+    Map<String, Object> properties = new HashMap<>(super.getConfigOverrides());
+    properties.put("pinot.multistage.engine.enabled", "true");
+    properties.put("pinot.server.instance.currentDataTableVersion", "4");
+
+    return properties;
   }
 
   @Override

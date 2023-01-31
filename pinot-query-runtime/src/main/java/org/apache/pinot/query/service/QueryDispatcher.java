@@ -22,9 +22,11 @@ import com.google.common.annotations.VisibleForTesting;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.util.Pair;
 import org.apache.pinot.common.datablock.DataBlock;
@@ -32,6 +34,7 @@ import org.apache.pinot.common.datablock.DataBlockUtils;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.proto.PinotQueryWorkerGrpc;
 import org.apache.pinot.common.proto.Worker;
+import org.apache.pinot.common.response.broker.IntermediateBrokerResponse;
 import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.core.transport.ServerInstance;
@@ -60,7 +63,7 @@ public class QueryDispatcher {
   public QueryDispatcher() {
   }
 
-  public ResultTable submitAndReduce(long requestId, QueryPlan queryPlan,
+  public IntermediateBrokerResponse submitAndReduce(long requestId, QueryPlan queryPlan,
       MailboxService<TransferableBlock> mailboxService, long timeoutNano)
       throws Exception {
     // submit all the distributed stages.
@@ -71,9 +74,26 @@ public class QueryDispatcher {
         queryPlan.getStageMetadataMap().get(reduceNode.getSenderStageId()).getServerInstances(),
         requestId, reduceNode.getSenderStageId(), reduceNode.getDataSchema(), mailboxService.getHostname(),
         mailboxService.getMailboxPort());
-    List<DataBlock> resultDataBlocks = reduceMailboxReceive(mailboxReceiveOperator, timeoutNano);
-    return toResultTable(resultDataBlocks, queryPlan.getQueryResultFields(),
+    List<TransferableBlock> resultDataTransferableBlocks = reduceMailboxReceive(mailboxReceiveOperator, timeoutNano);
+
+    List<DataBlock> resultDataBlocks = resultDataTransferableBlocks.stream().map(TransferableBlock::getDataBlock).collect(
+        Collectors.toList());
+
+    Map<String, String> metadata;
+
+    if( !resultDataTransferableBlocks.isEmpty() ) {
+      metadata = resultDataTransferableBlocks.get(0).getResultsMetadata();
+    } else {
+      metadata = new HashMap<>();
+    }
+
+    IntermediateBrokerResponse intermediateBrokerResponse = new IntermediateBrokerResponse();
+
+    ResultTable resultTable = toResultTable(resultDataBlocks, queryPlan.getQueryResultFields(),
         queryPlan.getQueryStageMap().get(0).getDataSchema());
+    intermediateBrokerResponse.setResultTable(resultTable);
+    intermediateBrokerResponse.setMetadata(metadata);
+    return intermediateBrokerResponse;
   }
 
   public int submit(long requestId, QueryPlan queryPlan)
@@ -120,11 +140,12 @@ public class QueryDispatcher {
   }
 
   public static List<DataBlock> reduceMailboxReceive(MailboxReceiveOperator mailboxReceiveOperator) {
-    return reduceMailboxReceive(mailboxReceiveOperator, QueryConfig.DEFAULT_TIMEOUT_NANO);
+    return reduceMailboxReceive(mailboxReceiveOperator, QueryConfig.DEFAULT_TIMEOUT_NANO).stream().map(
+        TransferableBlock::getDataBlock).collect(Collectors.toList());
   }
 
-  public static List<DataBlock> reduceMailboxReceive(MailboxReceiveOperator mailboxReceiveOperator, long timeoutNano) {
-    List<DataBlock> resultDataBlocks = new ArrayList<>();
+  public static List<TransferableBlock> reduceMailboxReceive(MailboxReceiveOperator mailboxReceiveOperator, long timeoutNano) {
+    List<TransferableBlock> resultDataBlocks = new ArrayList<>();
     TransferableBlock transferableBlock;
     long timeoutWatermark = System.nanoTime() + timeoutNano;
     while (System.nanoTime() < timeoutWatermark) {
@@ -141,7 +162,7 @@ public class QueryDispatcher {
         return resultDataBlocks;
       }
 
-      resultDataBlocks.add(transferableBlock.getDataBlock());
+      resultDataBlocks.add(transferableBlock);
     }
 
     throw new RuntimeException("Timed out while receiving from mailbox: " + QueryException.EXECUTION_TIMEOUT_ERROR);

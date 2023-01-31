@@ -19,12 +19,15 @@
 package org.apache.pinot.query.runtime.blocks;
 
 import com.google.common.annotations.VisibleForTesting;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.pinot.common.datablock.ColumnarDataBlock;
 import org.apache.pinot.common.datablock.DataBlock;
 import org.apache.pinot.common.datablock.DataBlockUtils;
 import org.apache.pinot.common.datablock.MetadataBlock;
 import org.apache.pinot.common.datablock.RowDataBlock;
+import org.apache.pinot.common.datatable.DataTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.core.common.Block;
 import org.apache.pinot.core.common.BlockDocIdSet;
@@ -173,6 +176,15 @@ public class TransferableBlock implements Block {
 
     MetadataBlock metadata = (MetadataBlock) _dataBlock;
     return metadata.getType() == type;
+  }
+
+  /**
+   * Returns the metadata for the results.
+   */
+  public Map<String, String> getResultsMetadata() {
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put(DataTable.MetadataKey.NUM_DOCS_SCANNED.getName(), "123456789L");
+    return metadata;
   }
 
   @Override

@@ -31,12 +31,14 @@ import org.apache.pinot.broker.broker.AccessControlFactory;
 import org.apache.pinot.broker.queryquota.QueryQuotaManager;
 import org.apache.pinot.broker.routing.BrokerRoutingManager;
 import org.apache.pinot.common.config.provider.TableCache;
+import org.apache.pinot.common.datatable.DataTable;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.metrics.BrokerMeter;
 import org.apache.pinot.common.metrics.BrokerMetrics;
 import org.apache.pinot.common.request.BrokerRequest;
 import org.apache.pinot.common.response.BrokerResponse;
 import org.apache.pinot.common.response.broker.BrokerResponseNative;
+import org.apache.pinot.common.response.broker.IntermediateBrokerResponse;
 import org.apache.pinot.common.response.broker.ResultTable;
 import org.apache.pinot.common.utils.DataSchema;
 import org.apache.pinot.common.utils.request.RequestUtils;
@@ -154,9 +156,9 @@ public class MultiStageBrokerRequestHandler extends BaseBrokerRequestHandler {
       return new BrokerResponseNative(QueryException.getException(QueryException.SQL_PARSING_ERROR, e));
     }
 
-    ResultTable queryResults;
+    IntermediateBrokerResponse intermediateBrokerResponse;
     try {
-      queryResults = _queryDispatcher.submitAndReduce(requestId, queryPlan, _mailboxService, DEFAULT_TIMEOUT_NANO);
+      intermediateBrokerResponse = _queryDispatcher.submitAndReduce(requestId, queryPlan, _mailboxService, DEFAULT_TIMEOUT_NANO);
     } catch (Exception e) {
       LOGGER.info("query execution failed", e);
       return new BrokerResponseNative(QueryException.getException(QueryException.QUERY_EXECUTION_ERROR, e));
@@ -169,7 +171,9 @@ public class MultiStageBrokerRequestHandler extends BaseBrokerRequestHandler {
     long totalTimeMs = TimeUnit.NANOSECONDS.toMillis(sqlNodeAndOptions.getParseTimeNs()
         + (executionEndTimeNs - compilationStartTimeNs));
     brokerResponse.setTimeUsedMs(totalTimeMs);
-    brokerResponse.setResultTable(queryResults);
+    brokerResponse.setResultTable(intermediateBrokerResponse.getResultTable());
+    brokerResponse.setNumDocsScanned(
+        Long.parseLong(intermediateBrokerResponse.getMetadata().getOrDefault(DataTable.MetadataKey.NUM_DOCS_SCANNED.getName(), "99999")));
     requestContext.setQueryProcessingTime(totalTimeMs);
     augmentStatistics(requestContext, brokerResponse);
     return brokerResponse;

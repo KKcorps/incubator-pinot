@@ -23,14 +23,19 @@ import com.google.common.base.Preconditions;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
@@ -126,6 +131,10 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   private TableDedupMetadataManager _tableDedupMetadataManager;
   private TableUpsertMetadataManager _tableUpsertMetadataManager;
   private BooleanSupplier _isTableReadyToConsumeData;
+  private final PriorityBlockingQueue<ImmutableSegmentImpl> _segmentsToAdd =
+      new PriorityBlockingQueue<>(10, Comparator.comparing(ImmutableSegmentImpl::hasValidDocIdSnapshot).reversed());
+  private final AtomicInteger _segmentsAddedInQueue = new AtomicInteger(0);
+  private ExecutorService _segmentProcessLoop;
 
   public RealtimeTableDataManager(Semaphore segmentBuildSemaphore) {
     this(segmentBuildSemaphore, () -> true);
@@ -235,8 +244,28 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
         }
       };
     } else {
+      if (_segmentProcessLoop != null) {
+        _segmentProcessLoop.shutdownNow();
+      }
       _isTableReadyToConsumeData = () -> true;
     }
+
+    if (isUpsertEnabled() && isEnableSnapshot()) {
+      //TODO: move this service variable outer so that it can be shutdown properly
+      _segmentProcessLoop = Executors.newSingleThreadExecutor();
+      _segmentProcessLoop.submit(() -> {
+        try {
+          processAddSegmentQueue();
+        } catch (InterruptedException e) {
+          LOGGER.error("Error processing add segment queue", e);
+        }
+      });
+    }
+  }
+
+  private boolean isEnableSnapshot() {
+    return _tableDataManagerConfig.getTableConfig().getUpsertConfig() != null
+        && _tableDataManagerConfig.getTableConfig().getUpsertConfig().isEnableSnapshot();
   }
 
   @Override
@@ -490,8 +519,16 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   @Override
   public void addSegment(ImmutableSegment immutableSegment) {
     if (isUpsertEnabled()) {
-      handleUpsert(immutableSegment);
-      return;
+      if (isEnableSnapshot()) {
+        if (immutableSegment instanceof ImmutableSegmentImpl) {
+          _segmentsToAdd.add( (ImmutableSegmentImpl) immutableSegment);
+          _segmentsAddedInQueue.incrementAndGet();
+        }
+        //TODO: what should be done here for EmptySegment?
+      } else {
+        handleUpsert(immutableSegment);
+        return;
+      }
     }
 
     // TODO: Change dedup handling to handle segment replacement
@@ -500,6 +537,29 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
     }
     super.addSegment(immutableSegment);
   }
+
+  public void processAddSegmentQueue() throws InterruptedException {
+    while (!TableStateUtils.isAllSegmentsLoaded(_helixManager, _tableNameWithType)) {
+      ImmutableSegmentImpl immutableSegment = _segmentsToAdd.take();
+
+      boolean hasSnapshot = immutableSegment.hasValidDocIdSnapshot();
+
+      if (hasSnapshot) {
+        // Process your segment with snapshot here
+        handleUpsert(immutableSegment);
+        continue;
+      }
+
+      if (_segmentsAddedInQueue.get() == TableStateUtils.getNumSegmentsToLoad(_helixManager, _tableNameWithType)) {
+        // Process immutable segment without snapshot here, since we are using priority queue, we can be sure that ones with snapshot will be received first
+        handleUpsert(immutableSegment);
+      } else {
+        _segmentsToAdd.add(immutableSegment);
+      }
+    }
+  }
+
+
 
   private void buildDedupMeta(ImmutableSegmentImpl immutableSegment) {
     // TODO(saurabh) refactor commons code with handleUpsert

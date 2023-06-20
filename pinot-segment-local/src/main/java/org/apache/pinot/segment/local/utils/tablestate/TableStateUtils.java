@@ -137,4 +137,47 @@ public class TableStateUtils {
       return false;
     }
   }
+
+  public static int getNumSegmentsToLoad(HelixManager helixManager, String tableNameWithType) {
+    List<String> onlineSegments =
+        getSegmentsInGivenStateForThisInstance(helixManager, tableNameWithType, SegmentStateModel.ONLINE);
+    if (onlineSegments.isEmpty()) {
+      LOGGER.info("No ONLINE segment found for table: {}", tableNameWithType);
+      return 0;
+    }
+
+    // Check if ideal state and current state matches for all segments assigned to the current instance
+    HelixDataAccessor dataAccessor = helixManager.getHelixDataAccessor();
+    PropertyKey.Builder keyBuilder = dataAccessor.keyBuilder();
+    String instanceName = helixManager.getInstanceName();
+    LiveInstance liveInstance = dataAccessor.getProperty(keyBuilder.liveInstance(instanceName));
+    if (liveInstance == null) {
+      LOGGER.warn("Failed to find live instance for instance: {}", instanceName);
+      return 0;
+    }
+    String sessionId = liveInstance.getEphemeralOwner();
+    CurrentState currentState =
+        dataAccessor.getProperty(keyBuilder.currentState(instanceName, sessionId, tableNameWithType));
+    if (currentState == null) {
+      LOGGER.warn("Failed to find current state for instance: {}, sessionId: {}, table: {}", instanceName, sessionId,
+          tableNameWithType);
+      return 0;
+    }
+    List<String> unloadedSegments = new ArrayList<>();
+    Map<String, String> currentStateMap = currentState.getPartitionStateMap();
+    for (String segmentName : onlineSegments) {
+      String actualState = currentStateMap.get(segmentName);
+      if (!SegmentStateModel.ONLINE.equals(actualState)) {
+        if (SegmentStateModel.ERROR.equals(actualState)) {
+          LOGGER.error("Found segment: {}, table: {} in ERROR state, expected: {}", segmentName, tableNameWithType,
+              SegmentStateModel.ONLINE);
+          return 0;
+        } else {
+          unloadedSegments.add(segmentName);
+        }
+      }
+    }
+
+    return unloadedSegments.size();
+  }
 }

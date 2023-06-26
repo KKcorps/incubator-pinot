@@ -26,17 +26,20 @@ import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.helix.model.IdealState;
 import org.apache.pinot.common.Utils;
 import org.apache.pinot.common.metadata.ZKMetadataProvider;
 import org.apache.pinot.common.metadata.instance.InstanceZKMetadata;
@@ -47,10 +50,12 @@ import org.apache.pinot.common.utils.SegmentName;
 import org.apache.pinot.common.utils.SegmentUtils;
 import org.apache.pinot.common.utils.TarGzCompressionUtils;
 import org.apache.pinot.common.utils.fetcher.SegmentFetcherFactory;
+import org.apache.pinot.common.utils.helix.HelixHelper;
 import org.apache.pinot.core.data.manager.BaseTableDataManager;
 import org.apache.pinot.core.data.manager.offline.ImmutableSegmentDataManager;
 import org.apache.pinot.core.util.PeerServerSegmentFinder;
 import org.apache.pinot.segment.local.data.manager.SegmentDataManager;
+import org.apache.pinot.segment.local.data.manager.TableDataManager;
 import org.apache.pinot.segment.local.dedup.PartitionDedupMetadataManager;
 import org.apache.pinot.segment.local.dedup.TableDedupMetadataManager;
 import org.apache.pinot.segment.local.dedup.TableDedupMetadataManagerFactory;
@@ -64,9 +69,11 @@ import org.apache.pinot.segment.local.upsert.PartitionUpsertMetadataManager;
 import org.apache.pinot.segment.local.upsert.TableUpsertMetadataManager;
 import org.apache.pinot.segment.local.upsert.TableUpsertMetadataManagerFactory;
 import org.apache.pinot.segment.local.utils.SchemaUtils;
+import org.apache.pinot.segment.local.utils.SegmentLocks;
 import org.apache.pinot.segment.local.utils.tablestate.TableStateUtils;
 import org.apache.pinot.segment.spi.ImmutableSegment;
 import org.apache.pinot.segment.spi.IndexSegment;
+import org.apache.pinot.segment.spi.SegmentMetadata;
 import org.apache.pinot.spi.config.instance.InstanceDataManagerConfig;
 import org.apache.pinot.spi.config.table.DedupConfig;
 import org.apache.pinot.spi.config.table.IndexingConfig;
@@ -126,6 +133,7 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   private TableDedupMetadataManager _tableDedupMetadataManager;
   private TableUpsertMetadataManager _tableUpsertMetadataManager;
   private BooleanSupplier _isTableReadyToConsumeData;
+  private boolean _preloadSegments;
 
   public RealtimeTableDataManager(Semaphore segmentBuildSemaphore) {
     this(segmentBuildSemaphore, () -> true);
@@ -208,6 +216,46 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       _tableUpsertMetadataManager = TableUpsertMetadataManagerFactory.create(tableConfig, schema, this, _serverMetrics);
     }
 
+    if (_preloadSegments) {
+     IdealState idealState = HelixHelper.getTableIdealState(_helixManager, _tableNameWithType);
+
+     //TODO: Find a way to get segment valid doc id snapshot and use it to order the segments list
+     for(String segmentName: idealState.getPartitionSet()) {
+        Map<String, String> instanceStateMap = idealState.getInstanceStateMap(segmentName);
+        System.out.println("partitionName: " + segmentName);
+        System.out.println("instanceId: " + getServerInstance());
+        String state = instanceStateMap.get(getServerInstance());
+        String tableNameWithType = _tableNameWithType;
+        if (Objects.equals(state, "ONLINE")) {
+          LOGGER.info("Adding or replacing segment: {} for table: {}", segmentName, tableNameWithType);
+
+          // Get updated table config, schema and segment metadata from Zookeeper.
+          Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, tableConfig);
+          SegmentZKMetadata zkMetadata =
+              ZKMetadataProvider.getSegmentZKMetadata(_propertyStore, tableNameWithType, segmentName);
+          Preconditions.checkState(zkMetadata != null, "Failed to find ZK metadata for segment: %s, table: %s", segmentName,
+              tableNameWithType);
+
+          // This method might modify the file on disk. Use segment lock to prevent race condition
+          Lock segmentLock = SegmentLocks.getSegmentLock(tableNameWithType, segmentName);
+          try {
+            segmentLock.lock();
+
+            // But if table mgr is not created or the segment is not loaded yet, the localMetadata
+            // is set to null. Then, addOrReplaceSegment method will load the segment accordingly.
+            SegmentMetadata localMetadata = getSegmentMetadata(tableNameWithType, segmentName);
+
+            // TODO: find a way to pass instance data manager config
+           addOrReplaceSegment(segmentName, new IndexLoadingConfig(_instanceDataManagerConfig, tableConfig, schema),
+                    zkMetadata, localMetadata);
+            LOGGER.info("Added or replaced segment: {} of table: {}", segmentName, tableNameWithType);
+          } finally {
+            segmentLock.unlock();
+          }
+        }
+     }
+    }
+
     // For dedup and partial-upsert, need to wait for all segments loaded before starting consuming data
     if (isDedupEnabled() || isPartialUpsertEnabled()) {
       _isTableReadyToConsumeData = new BooleanSupplier() {
@@ -237,6 +285,18 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
     } else {
       _isTableReadyToConsumeData = () -> true;
     }
+  }
+
+  public SegmentMetadata getSegmentMetadata(String tableNameWithType, String segmentName) {
+      SegmentDataManager segmentDataManager = acquireSegment(segmentName);
+      if (segmentDataManager == null) {
+        return null;
+      }
+      try {
+        return segmentDataManager.getSegment().getSegmentMetadata();
+      } finally {
+        releaseSegment(segmentDataManager);
+      }
   }
 
   @Override

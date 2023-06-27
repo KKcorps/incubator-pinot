@@ -23,6 +23,7 @@ import com.google.common.base.Preconditions;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -137,7 +138,6 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   private TableDedupMetadataManager _tableDedupMetadataManager;
   private TableUpsertMetadataManager _tableUpsertMetadataManager;
   private BooleanSupplier _isTableReadyToConsumeData;
-  private boolean _preloadSegments;
 
   public RealtimeTableDataManager(Semaphore segmentBuildSemaphore) {
     this(segmentBuildSemaphore, () -> true);
@@ -226,6 +226,7 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
      List<String> segmentsWithSnapshots = new LinkedList<>();
      List<String> segmentsWithoutSnapshots = new LinkedList<>();
 
+     //TODO: should be multi-threaded (done using executor service maybe?)
       for (String segmentName : idealState.getPartitionSet()) {
         Map<String, String> instanceStateMap = idealState.getInstanceStateMap(segmentName);
         System.out.println("partitionName: " + segmentName);
@@ -249,40 +250,15 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       }
 
       for (String segmentName : segmentsWithSnapshots) {
-        String tableNameWithType = _tableNameWithType;
-        Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, tableConfig);
-        SegmentZKMetadata zkMetadata =
-            ZKMetadataProvider.getSegmentZKMetadata(_propertyStore, tableNameWithType, segmentName);
-        Preconditions.checkState(zkMetadata != null, "Failed to find ZK metadata for segment: %s, table: %s",
-            segmentName, tableNameWithType);
-
-        // This method might modify the file on disk. Use segment lock to prevent race condition
-        Lock segmentLock = SegmentLocks.getSegmentLock(tableNameWithType, segmentName);
-        try {
-          segmentLock.lock();
-
-          // But if table mgr is not created or the segment is not loaded yet, the localMetadata
-          // is set to null. Then, addOrReplaceSegment method will load the segment accordingly.
-          SegmentMetadata localMetadata = getSegmentMetadata(tableNameWithType, segmentName);
-
-          if (getValidDocIdsSnapshotFile(localMetadata).exists()) {
-            segmentsWithSnapshots.add(segmentName);
-            // TODO: find a way to pass instance data manager config
-              addOrReplaceSegment(segmentName, new IndexLoadingConfig(_instanceDataManagerConfig, tableConfig, schema),
-                  zkMetadata, localMetadata);
-              LOGGER.info("Added or replaced segment: {} of table: {}", segmentName, tableNameWithType);
-          } else {
-            segmentsWithoutSnapshots.add(segmentName);
-          }
-        } finally {
-          segmentLock.unlock();
-        }
+        loadSegmentFromDisk(tableConfig, segmentName);
+        _preloadedSegmentsMap.put(segmentName, true);
       }
       
-      //TODO: Missing step - Change from write only model to read-write mode
+      //TODO: Missing step - Change from write only mode to read-write mode
       
       for (String segmentName : segmentsWithoutSnapshots) {
-        loadSegmentFromDisk(tableConfig, segmentsWithSnapshots, segmentsWithoutSnapshots, segmentName);
+        loadSegmentFromDisk(tableConfig, segmentName);
+        _preloadedSegmentsMap.put(segmentName, true);
       }
     }
 
@@ -317,8 +293,7 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
     }
   }
 
-  private void loadSegmentFromDisk(TableConfig tableConfig, List<String> segmentsWithSnapshots,
-      List<String> segmentsWithoutSnapshots, String segmentName)
+  private void loadSegmentFromDisk(TableConfig tableConfig, String segmentName)
       throws Exception {
     String tableNameWithType = _tableNameWithType;
     Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, tableConfig);
@@ -334,21 +309,14 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
       // But if table mgr is not created or the segment is not loaded yet, the localMetadata
       // is set to null. Then, addOrReplaceSegment method will load the segment accordingly.
       SegmentMetadata localMetadata = getSegmentMetadata(tableNameWithType, segmentName);
-
-      if (getValidDocIdsSnapshotFile(localMetadata).exists()) {
-        segmentsWithSnapshots.add(segmentName);
-        // TODO: find a way to pass instance data manager config
-        addOrReplaceSegment(segmentName, new IndexLoadingConfig(_instanceDataManagerConfig, tableConfig, schema),
-            zkMetadata, localMetadata);
-        LOGGER.info("Added or replaced segment: {} of table: {}", segmentName, tableNameWithType);
-      } else {
-        segmentsWithoutSnapshots.add(segmentName);
-      }
+      addOrReplaceSegment(segmentName, new IndexLoadingConfig(_instanceDataManagerConfig, tableConfig, schema),
+          zkMetadata, localMetadata);
     } finally {
       segmentLock.unlock();
     }
   }
 
+  //TODO: duplicate method from ImmutableSegmentImpl
   private File getValidDocIdsSnapshotFile(SegmentMetadata segmentMetadata) {
     return new File(SegmentDirectoryPaths.findSegmentDirectory(segmentMetadata.getIndexDir()),
         V1Constants.VALID_DOC_IDS_SNAPSHOT_FILE_NAME);

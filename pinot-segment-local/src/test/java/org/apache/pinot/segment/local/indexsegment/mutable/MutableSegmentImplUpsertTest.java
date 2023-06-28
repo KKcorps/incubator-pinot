@@ -82,7 +82,7 @@ public class MutableSegmentImplUpsertTest {
     File jsonFile = new File(dataResourceUrl.getFile());
     _partitionUpsertMetadataManager =
         TableUpsertMetadataManagerFactory.create(_tableConfig, _schema, mock(TableDataManager.class),
-            mock(ServerMetrics.class)).getOrCreatePartitionManager(0);
+            mock(ServerMetrics.class), null, null).getOrCreatePartitionManager(0);
     _mutableSegmentImpl =
         MutableSegmentImplTestUtils.createMutableSegmentImpl(_schema, Collections.emptySet(), Collections.emptySet(),
             Collections.emptySet(), false, true, upsertConfigWithHash, "secondsSinceEpoch",

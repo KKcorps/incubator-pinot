@@ -217,49 +217,9 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
           _tableUpsertMetadataManager);
       Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, _tableNameWithType);
       Preconditions.checkState(schema != null, "Failed to find schema for table: %s", _tableNameWithType);
-      _tableUpsertMetadataManager = TableUpsertMetadataManagerFactory.create(tableConfig, schema, this, _serverMetrics);
-    }
-
-    if (_preloadSegments) {
-     IdealState idealState = HelixHelper.getTableIdealState(_helixManager, _tableNameWithType);
-
-     List<String> segmentsWithSnapshots = new LinkedList<>();
-     List<String> segmentsWithoutSnapshots = new LinkedList<>();
-
-     //TODO: should be multi-threaded (done using executor service maybe?)
-      for (String segmentName : idealState.getPartitionSet()) {
-        Map<String, String> instanceStateMap = idealState.getInstanceStateMap(segmentName);
-        System.out.println("partitionName: " + segmentName);
-        System.out.println("instanceId: " + getServerInstance());
-        String state = instanceStateMap.get(getServerInstance());
-        String tableNameWithType = _tableNameWithType;
-        if (Objects.equals(state, "ONLINE")) {
-          LOGGER.info("Adding or replacing segment: {} for table: {}", segmentName, tableNameWithType);
-
-          // But if table mgr is not created or the segment is not loaded yet, the localMetadata
-          // is set to null. Then, addOrReplaceSegment method will load the segment accordingly.
-          SegmentMetadata localMetadata = getSegmentMetadata(tableNameWithType, segmentName);
-
-          if (getValidDocIdsSnapshotFile(localMetadata).exists()) {
-            segmentsWithSnapshots.add(segmentName);
-            // TODO: find a way to pass instance data manager config
-          } else {
-            segmentsWithoutSnapshots.add(segmentName);
-          }
-        }
-      }
-
-      for (String segmentName : segmentsWithSnapshots) {
-        loadSegmentFromDisk(tableConfig, segmentName);
-        _preloadedSegmentsMap.put(segmentName, true);
-      }
-      
-      //TODO: Missing step - Change from write only mode to read-write mode
-      
-      for (String segmentName : segmentsWithoutSnapshots) {
-        loadSegmentFromDisk(tableConfig, segmentName);
-        _preloadedSegmentsMap.put(segmentName, true);
-      }
+      _tableUpsertMetadataManager =
+          TableUpsertMetadataManagerFactory.create(tableConfig, schema, this, _serverMetrics, _helixManager,
+              _propertyStore);
     }
 
     // For dedup and partial-upsert, need to wait for all segments loaded before starting consuming data
@@ -291,47 +251,6 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
     } else {
       _isTableReadyToConsumeData = () -> true;
     }
-  }
-
-  private void loadSegmentFromDisk(TableConfig tableConfig, String segmentName)
-      throws Exception {
-    String tableNameWithType = _tableNameWithType;
-    Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, tableConfig);
-    SegmentZKMetadata zkMetadata =
-        ZKMetadataProvider.getSegmentZKMetadata(_propertyStore, tableNameWithType, segmentName);
-    Preconditions.checkState(zkMetadata != null, "Failed to find ZK metadata for segment: %s, table: %s", segmentName, tableNameWithType);
-
-    // This method might modify the file on disk. Use segment lock to prevent race condition
-    Lock segmentLock = SegmentLocks.getSegmentLock(tableNameWithType, segmentName);
-    try {
-      segmentLock.lock();
-
-      // But if table mgr is not created or the segment is not loaded yet, the localMetadata
-      // is set to null. Then, addOrReplaceSegment method will load the segment accordingly.
-      SegmentMetadata localMetadata = getSegmentMetadata(tableNameWithType, segmentName);
-      addOrReplaceSegment(segmentName, new IndexLoadingConfig(_instanceDataManagerConfig, tableConfig, schema),
-          zkMetadata, localMetadata);
-    } finally {
-      segmentLock.unlock();
-    }
-  }
-
-  //TODO: duplicate method from ImmutableSegmentImpl
-  private File getValidDocIdsSnapshotFile(SegmentMetadata segmentMetadata) {
-    return new File(SegmentDirectoryPaths.findSegmentDirectory(segmentMetadata.getIndexDir()),
-        V1Constants.VALID_DOC_IDS_SNAPSHOT_FILE_NAME);
-  }
-
-  public SegmentMetadata getSegmentMetadata(String tableNameWithType, String segmentName) {
-      SegmentDataManager segmentDataManager = acquireSegment(segmentName);
-      if (segmentDataManager == null) {
-        return null;
-      }
-      try {
-        return segmentDataManager.getSegment().getSegmentMetadata();
-      } finally {
-        releaseSegment(segmentDataManager);
-      }
   }
 
   @Override

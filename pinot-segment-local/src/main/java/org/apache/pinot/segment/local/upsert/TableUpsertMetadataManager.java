@@ -20,6 +20,9 @@ package org.apache.pinot.segment.local.upsert;
 
 import java.io.Closeable;
 import javax.annotation.concurrent.ThreadSafe;
+import org.apache.helix.HelixManager;
+import org.apache.helix.store.zk.ZkHelixPropertyStore;
+import org.apache.helix.zookeeper.datamodel.ZNRecord;
 import org.apache.pinot.common.metrics.ServerMetrics;
 import org.apache.pinot.segment.local.data.manager.TableDataManager;
 import org.apache.pinot.spi.config.table.TableConfig;
@@ -33,7 +36,8 @@ import org.apache.pinot.spi.data.Schema;
 @ThreadSafe
 public interface TableUpsertMetadataManager extends Closeable {
 
-  void init(TableConfig tableConfig, Schema schema, TableDataManager tableDataManager, ServerMetrics serverMetrics);
+  void init(TableConfig tableConfig, Schema schema, TableDataManager tableDataManager, ServerMetrics serverMetrics,
+      HelixManager helixManager, ZkHelixPropertyStore<ZNRecord> propertyStore);
 
   PartitionUpsertMetadataManager getOrCreatePartitionManager(int partitionId);
 

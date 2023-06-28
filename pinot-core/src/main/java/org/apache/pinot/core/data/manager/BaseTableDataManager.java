@@ -111,8 +111,6 @@ public abstract class BaseTableDataManager implements TableDataManager {
   protected Cache<String, String> _recentlyDeletedSegments;
 
   protected volatile boolean _shutDown;
-  protected boolean _preloadSegments;
-  protected Map<String, Boolean> _preloadedSegmentsMap = new HashMap<>(); // will be used to track preloaded segments and return message to helix on addSegment call
 
   @Override
   public void init(TableDataManagerConfig tableDataManagerConfig, String instanceId,
@@ -448,14 +446,6 @@ public abstract class BaseTableDataManager implements TableDataManager {
       LOGGER.info("Segment: {} of table: {} has crc: {} same as before, already loaded, do nothing", segmentName,
           _tableNameWithType, localMetadata.getCrc());
       return;
-    }
-
-    if (_preloadSegments) {
-      if (_preloadedSegmentsMap.containsKey(segmentName)) return;
-      // wait for the segment to be loaded
-      while (!_preloadedSegmentsMap.containsKey(segmentName)) {
-        Thread.sleep(100);
-      }
     }
 
     // The segment is not loaded by the server if the metadata object is null. But the segment

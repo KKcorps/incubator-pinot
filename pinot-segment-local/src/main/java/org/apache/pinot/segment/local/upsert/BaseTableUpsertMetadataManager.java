@@ -19,13 +19,32 @@
 package org.apache.pinot.segment.local.upsert;
 
 import com.google.common.base.Preconditions;
+import java.io.File;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.locks.Lock;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.helix.HelixManager;
+import org.apache.helix.model.IdealState;
+import org.apache.helix.store.HelixPropertyStore;
+import org.apache.helix.store.zk.ZkHelixPropertyStore;
+import org.apache.helix.zookeeper.datamodel.ZNRecord;
+import org.apache.pinot.common.metadata.ZKMetadataProvider;
+import org.apache.pinot.common.metadata.segment.SegmentZKMetadata;
 import org.apache.pinot.common.metrics.ServerMetrics;
+import org.apache.pinot.common.utils.helix.HelixHelper;
+import org.apache.pinot.segment.local.data.manager.SegmentDataManager;
 import org.apache.pinot.segment.local.data.manager.TableDataManager;
+import org.apache.pinot.segment.local.segment.index.loader.IndexLoadingConfig;
+import org.apache.pinot.segment.local.utils.SegmentLocks;
+import org.apache.pinot.segment.spi.SegmentMetadata;
+import org.apache.pinot.segment.spi.V1Constants;
+import org.apache.pinot.segment.spi.store.SegmentDirectoryPaths;
 import org.apache.pinot.spi.config.table.HashFunction;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.UpsertConfig;
@@ -42,10 +61,15 @@ public abstract class BaseTableUpsertMetadataManager implements TableUpsertMetad
   protected PartialUpsertHandler _partialUpsertHandler;
   protected boolean _enableSnapshot;
   protected ServerMetrics _serverMetrics;
+  protected boolean _preloadSegments;
+  protected Map<String, Boolean> _preloadedSegmentsMap = new HashMap<>(); // will be used to track preloaded segments and return message to helix on addSegment call
+
+  protected HelixManager _helixManager;
+  protected ZkHelixPropertyStore<ZNRecord> _propertyStore;
 
   @Override
   public void init(TableConfig tableConfig, Schema schema, TableDataManager tableDataManager,
-      ServerMetrics serverMetrics) {
+      ServerMetrics serverMetrics, HelixManager helixManager, ZkHelixPropertyStore<ZNRecord> propertyStore) {
     _tableNameWithType = tableConfig.getTableName();
 
     UpsertConfig upsertConfig = tableConfig.getUpsertConfig();
@@ -75,6 +99,105 @@ public abstract class BaseTableUpsertMetadataManager implements TableUpsertMetad
 
     _enableSnapshot = upsertConfig.isEnableSnapshot();
     _serverMetrics = serverMetrics;
+    _helixManager = helixManager;
+    _propertyStore = propertyStore;
+
+    _preloadSegments = upsertConfig.isEnableSnapshot(); //TODO: should be configurable
+    if(_preloadSegments) {
+      preloadSegments(tableDataManager, tableConfig, schema);
+    }
+  }
+
+  public void preloadSegments(TableDataManager tableDataManager, TableConfig tableConfig, Schema schema) {
+    IdealState idealState = HelixHelper.getTableIdealState(_helixManager, _tableNameWithType);
+
+    List<String> segmentsWithSnapshots = new LinkedList<>();
+    List<String> segmentsWithoutSnapshots = new LinkedList<>();
+
+    //TODO: should be multi-threaded (done using executor service maybe?)
+    for (String segmentName : idealState.getPartitionSet()) {
+      Map<String, String> instanceStateMap = idealState.getInstanceStateMap(segmentName);
+      System.out.println("partitionName: " + segmentName);
+      System.out.println("instanceId: " + tableDataManager.getTableDataManagerConfig().getInstanceDataManagerConfig().getInstanceId());
+      String state = instanceStateMap.get(tableDataManager.getTableDataManagerConfig().getInstanceDataManagerConfig().getInstanceId());
+      String tableNameWithType = _tableNameWithType;
+      if (Objects.equals(state, "ONLINE")) {
+//        LOGGER.info("Adding or replacing segment: {} for table: {}", segmentName, tableNameWithType);
+
+        // But if table mgr is not created or the segment is not loaded yet, the localMetadata
+        // is set to null. Then, addOrReplaceSegment method will load the segment accordingly.
+        SegmentMetadata localMetadata = getSegmentMetadata(tableDataManager, tableNameWithType, segmentName);
+
+        if (getValidDocIdsSnapshotFile(localMetadata).exists()) {
+          segmentsWithSnapshots.add(segmentName);
+        } else {
+          segmentsWithoutSnapshots.add(segmentName);
+        }
+      }
+    }
+
+    for (String segmentName : segmentsWithSnapshots) {
+      try {
+        loadSegmentFromDisk(tableDataManager, tableConfig, segmentName);
+        _preloadedSegmentsMap.put(segmentName, true);
+      } catch (Exception e) {
+        //TODO: log error
+      }
+    }
+
+    //TODO: Missing step - Change from write only mode to read-write mode
+
+    for (String segmentName : segmentsWithoutSnapshots) {
+      try {
+        loadSegmentFromDisk(tableDataManager, tableConfig, segmentName);
+        _preloadedSegmentsMap.put(segmentName, true);
+      } catch (Exception e) {
+       //TODO: log error
+      }
+    }
+  }
+
+  //TODO: duplicate method from ImmutableSegmentImpl
+  private File getValidDocIdsSnapshotFile(SegmentMetadata segmentMetadata) {
+    return new File(SegmentDirectoryPaths.findSegmentDirectory(segmentMetadata.getIndexDir()),
+        V1Constants.VALID_DOC_IDS_SNAPSHOT_FILE_NAME);
+  }
+
+
+  private void loadSegmentFromDisk(TableDataManager tableDataManager, TableConfig tableConfig, String segmentName)
+      throws Exception {
+    String tableNameWithType = _tableNameWithType;
+    Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, tableConfig);
+    SegmentZKMetadata zkMetadata =
+        ZKMetadataProvider.getSegmentZKMetadata(_propertyStore, tableNameWithType, segmentName);
+    Preconditions.checkState(zkMetadata != null, "Failed to find ZK metadata for segment: %s, table: %s", segmentName, tableNameWithType);
+
+    // This method might modify the file on disk. Use segment lock to prevent race condition
+    Lock segmentLock = SegmentLocks.getSegmentLock(tableNameWithType, segmentName);
+    try {
+      segmentLock.lock();
+
+      // But if table mgr is not created or the segment is not loaded yet, the localMetadata
+      // is set to null. Then, addOrReplaceSegment method will load the segment accordingly.
+      SegmentMetadata localMetadata = getSegmentMetadata(tableDataManager, tableNameWithType, segmentName);
+      tableDataManager.addOrReplaceSegment(segmentName, new IndexLoadingConfig(tableDataManager.getTableDataManagerConfig().getInstanceDataManagerConfig(), tableConfig, schema),
+          zkMetadata, localMetadata);
+    } finally {
+      segmentLock.unlock();
+    }
+  }
+
+
+  public SegmentMetadata getSegmentMetadata(TableDataManager tableDataManager, String tableNameWithType, String segmentName) {
+    SegmentDataManager segmentDataManager = tableDataManager.acquireSegment(segmentName);
+    if (segmentDataManager == null) {
+      return null;
+    }
+    try {
+      return segmentDataManager.getSegment().getSegmentMetadata();
+    } finally {
+      tableDataManager.releaseSegment(segmentDataManager);
+    }
   }
 
   @Override

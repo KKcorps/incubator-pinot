@@ -238,6 +238,31 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
           }
         }
       };
+    } else if (isPreloadEnabled()) {
+      _isTableReadyToConsumeData = new BooleanSupplier() {
+        volatile boolean _isPreloadFinished;
+        long _lastCheckTimeMs;
+
+        @Override
+        public boolean getAsBoolean() {
+          if (_isPreloadFinished) {
+            return true;
+          } else {
+            synchronized (this) {
+              if (_isPreloadFinished) {
+                return true;
+              }
+              long currentTimeMs = System.currentTimeMillis();
+              if (currentTimeMs - _lastCheckTimeMs <= READY_TO_CONSUME_DATA_CHECK_INTERVAL_MS) {
+                return false;
+              }
+              _lastCheckTimeMs = currentTimeMs;
+              _isPreloadFinished = !_tableUpsertMetadataManager.isPreloading();
+              return _isPreloadFinished;
+            }
+          }
+        }
+      };
     } else {
       _isTableReadyToConsumeData = () -> true;
     }
@@ -362,6 +387,12 @@ public class RealtimeTableDataManager extends BaseTableDataManager {
   public boolean isPartialUpsertEnabled() {
     return _tableUpsertMetadataManager != null
         && _tableUpsertMetadataManager.getUpsertMode() == UpsertConfig.Mode.PARTIAL;
+  }
+
+  public boolean isPreloadEnabled() {
+    return _tableUpsertMetadataManager != null
+        && _tableDataManagerConfig.getTableConfig() != null
+        && _tableDataManagerConfig.getTableConfig().getUpsertConfig().isEnablePreload();
   }
 
   /*

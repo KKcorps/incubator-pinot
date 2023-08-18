@@ -79,6 +79,7 @@ import org.apache.pinot.segment.local.customobject.QuantileDigest;
 import org.apache.pinot.segment.local.customobject.StringLongPair;
 import org.apache.pinot.segment.local.customobject.VarianceTuple;
 import org.apache.pinot.segment.local.utils.GeometrySerializer;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.apache.pinot.spi.utils.BigDecimalUtils;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.locationtech.jts.geom.Geometry;
@@ -134,7 +135,8 @@ public class ObjectSerDeUtils {
     PinotFourthMoment(34),
     ArgMinMaxObject(35),
     KllDataSketch(36),
-    IntegerTupleSketch(37);
+    IntegerTupleSketch(37),
+    Vector(38);
 
     private final int _value;
 
@@ -226,6 +228,8 @@ public class ObjectSerDeUtils {
         return ObjectType.IntegerTupleSketch;
       } else if (value instanceof ExprMinMaxObject) {
         return ObjectType.ArgMinMaxObject;
+      } else if (value instanceof org.apache.pinot.spi.data.readers.Vector) {
+        return ObjectType.Vector;
       } else {
         throw new IllegalArgumentException("Unsupported type of value: " + value.getClass().getSimpleName());
       }
@@ -1130,6 +1134,26 @@ public class ObjectSerDeUtils {
     }
   };
 
+  public static final ObjectSerDe<Vector> VECTOR_SER_DE = new ObjectSerDe<Vector>() {
+
+    @Override
+    public byte[] serialize(Vector value) {
+      return value.toBytes();
+    }
+
+    @Override
+    public Vector deserialize(byte[] bytes) {
+      return Vector.fromBytes(bytes);
+    }
+
+    @Override
+    public Vector deserialize(ByteBuffer byteBuffer) {
+      byte[] bytes = new byte[byteBuffer.remaining()];
+      byteBuffer.get(bytes);
+      return Vector.fromBytes(bytes);
+    }
+  };
+
   public static final ObjectSerDe<Int2LongMap> INT_2_LONG_MAP_SER_DE = new ObjectSerDe<Int2LongMap>() {
 
     @Override
@@ -1326,6 +1350,7 @@ public class ObjectSerDeUtils {
       ARG_MIN_MAX_OBJECT_SER_DE,
       KLL_SKETCH_SER_DE,
       DATA_SKETCH_INT_TUPLE_SER_DE,
+      VECTOR_SER_DE,
   };
   //@formatter:on
 

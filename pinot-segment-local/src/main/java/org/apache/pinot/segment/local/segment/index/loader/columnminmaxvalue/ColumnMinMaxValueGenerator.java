@@ -30,6 +30,7 @@ import org.apache.pinot.segment.local.segment.index.readers.FloatDictionary;
 import org.apache.pinot.segment.local.segment.index.readers.IntDictionary;
 import org.apache.pinot.segment.local.segment.index.readers.LongDictionary;
 import org.apache.pinot.segment.local.segment.index.readers.StringDictionary;
+import org.apache.pinot.segment.local.segment.index.readers.VectorDictionary;
 import org.apache.pinot.segment.local.segment.index.readers.forward.ChunkReaderContext;
 import org.apache.pinot.segment.local.segment.index.readers.forward.FixedByteChunkMVForwardIndexReader;
 import org.apache.pinot.segment.local.segment.index.readers.forward.FixedByteChunkSVForwardIndexReader;
@@ -43,6 +44,7 @@ import org.apache.pinot.segment.spi.store.SegmentDirectory;
 import org.apache.pinot.segment.spi.utils.SegmentMetadataUtils;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.Schema;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.apache.pinot.spi.utils.BytesUtils;
 
@@ -180,6 +182,13 @@ public class ColumnMinMaxValueGenerator {
               columnMetadata.getColumnMaxLength())) {
             SegmentColumnarIndexCreator.addColumnMinMaxValueInfo(_segmentProperties, columnName,
                 bytesDictionary.getStringValue(0), bytesDictionary.getStringValue(length - 1), dataType);
+          }
+          break;
+        case VECTOR:
+          try (VectorDictionary vectorDictionary = new VectorDictionary(dictionaryBuffer, length,
+              columnMetadata.getColumnMaxLength())) {
+            SegmentColumnarIndexCreator.addColumnMinMaxValueInfo(_segmentProperties, columnName,
+                vectorDictionary.getStringValue(0), vectorDictionary.getStringValue(length - 1), dataType);
           }
           break;
         default:
@@ -374,6 +383,32 @@ public class ColumnMinMaxValueGenerator {
               BytesUtils.toHexString(min), BytesUtils.toHexString(max), dataType);
           }
           break;
+        case VECTOR: {
+          Vector min = null;
+          Vector max = null;
+          if (isSingleValueField) {
+            try (VarByteChunkSVForwardIndexReader rawIndexReader = new VarByteChunkSVForwardIndexReader(forwardBuffer,
+                DataType.VECTOR); ChunkReaderContext readerContext = rawIndexReader.createContext()) {
+              for (int docId = 0; docId < numDocs; docId++) {
+                byte[] byteValue = rawIndexReader.getBytes(docId, readerContext);
+                Vector value = Vector.fromBytes(byteValue);
+                if (min == null || value.compareTo(min) < 0) {
+                  min = value;
+                }
+                if (max == null || value.compareTo(max) > 0) {
+                  max = value;
+                }
+              }
+            }
+          }
+
+          String minString = min == null ? "-1" : min.toString();
+          String maxString = max == null ? "-1" : max.toString();
+
+          SegmentColumnarIndexCreator.addColumnMinMaxValueInfo(_segmentProperties, columnName,
+              minString, maxString, dataType);
+        }
+        break;
         default:
           throw new IllegalStateException("Unsupported data type: " + dataType + " for column: " + columnName);
       }

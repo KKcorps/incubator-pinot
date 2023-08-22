@@ -61,6 +61,7 @@ import org.apache.pinot.spi.config.table.IndexConfig;
 import org.apache.pinot.spi.config.table.SegmentZKPropsConfig;
 import org.apache.pinot.spi.data.DateTimeFieldSpec;
 import org.apache.pinot.spi.data.DateTimeFormatSpec;
+import org.apache.pinot.spi.data.DimensionFieldSpec;
 import org.apache.pinot.spi.data.FieldSpec;
 import org.apache.pinot.spi.data.FieldSpec.DataType;
 import org.apache.pinot.spi.data.FieldSpec.FieldType;
@@ -555,6 +556,13 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
       properties.setProperty(getKeyFor(column, DATETIME_GRANULARITY), dateTimeFieldSpec.getGranularity());
     }
 
+    if (fieldSpec.getDataType().equals(DataType.VECTOR)) {
+      DimensionFieldSpec vectorFieldSpec = (DimensionFieldSpec) fieldSpec;
+      properties.setProperty(getKeyFor(column, IS_VECTOR), "true");
+      properties.setProperty(getKeyFor(column, VECTOR_LENGTH), vectorFieldSpec.getVectorLength());
+      properties.setProperty(getKeyFor(column, VECTOR_DATATYPE), vectorFieldSpec.getVectorDataType().toString());
+    }
+
     // NOTE: Min/max could be null for real-time aggregate metrics.
     if (totalDocs > 0) {
       Object min = columnIndexCreationInfo.getMin();
@@ -570,7 +578,13 @@ public class SegmentColumnarIndexCreator implements SegmentCreator {
       //       null value changes
       defaultNullValue = CommonsConfigurationUtils.replaceSpecialCharacterInPropertyValue(defaultNullValue);
     }
-    properties.setProperty(getKeyFor(column, DEFAULT_NULL_VALUE), defaultNullValue);
+
+    //TODO: THis is a hack to support vector data type default null. We need to fix this.
+    if (fieldSpec.getDataType().equals(DataType.VECTOR)) {
+      properties.setProperty(getKeyFor(column, DEFAULT_NULL_VALUE), "-1");
+    } else {
+      properties.setProperty(getKeyFor(column, DEFAULT_NULL_VALUE), defaultNullValue);
+    }
   }
 
   public static void addColumnMinMaxValueInfo(PropertiesConfiguration properties, String column, String minValue,

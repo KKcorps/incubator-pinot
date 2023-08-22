@@ -27,7 +27,6 @@ import org.apache.pinot.segment.spi.compression.ChunkCompressionType;
 import org.apache.pinot.segment.spi.index.creator.ForwardIndexCreator;
 import org.apache.pinot.spi.data.FieldSpec.DataType;
 
-
 /**
  * Forward index creator for raw (non-dictionary-encoded) single-value column of fixed length data type (INT, LONG,
  * FLOAT, DOUBLE).

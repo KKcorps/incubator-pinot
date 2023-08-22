@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.pinot.segment.spi.compression.ChunkCompressionType;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.apache.pinot.spi.utils.BigDecimalUtils;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -91,6 +92,11 @@ public class VarByteChunkSVForwardIndexWriter extends BaseChunkSVForwardIndexWri
   @Override
   public void putBigDecimal(BigDecimal value) {
     putBytes(BigDecimalUtils.serialize(value));
+  }
+
+  @Override
+  public void putVector(Vector value) {
+    putBytes(value.toBytes());
   }
 
   @Override

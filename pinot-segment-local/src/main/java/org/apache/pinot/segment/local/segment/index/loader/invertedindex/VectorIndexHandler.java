@@ -40,6 +40,7 @@ import org.apache.pinot.segment.spi.index.reader.Dictionary;
 import org.apache.pinot.segment.spi.index.reader.ForwardIndexReader;
 import org.apache.pinot.segment.spi.index.reader.ForwardIndexReaderContext;
 import org.apache.pinot.segment.spi.store.SegmentDirectory;
+import org.apache.pinot.segment.spi.store.SegmentDirectoryPaths;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.apache.pinot.spi.config.table.VectorIndexConfig;
 import org.apache.pinot.spi.data.FieldSpec;
@@ -112,9 +113,12 @@ public class VectorIndexHandler extends BaseIndexHandler {
       throws Exception {
     File indexDir = _segmentDirectory.getSegmentMetadata().getIndexDir();
     String segmentName = _segmentDirectory.getSegmentMetadata().getName();
+    File segmentDirectory = SegmentDirectoryPaths.segmentDirectoryFor(indexDir,
+        _segmentDirectory.getSegmentMetadata().getVersion());
+
     String columnName = columnMetadata.getColumnName();
-    File inProgress = new File(indexDir, columnName + V1Constants.Indexes.VECTOR_INDEX_FILE_EXTENSION + ".inprogress");
-    File vectorIndexFile = new File(indexDir, columnName + V1Constants.Indexes.VECTOR_INDEX_FILE_EXTENSION);
+    File inProgress = new File(segmentDirectory, columnName + V1Constants.Indexes.VECTOR_HNSW_INDEX_FILE_EXTENSION + ".inprogress");
+    File vectorIndexFile = new File(segmentDirectory, columnName + V1Constants.Indexes.VECTOR_HNSW_INDEX_FILE_EXTENSION);
 
     if (!inProgress.exists()) {
       // Marker file does not exist, which means last run ended normally.
@@ -140,10 +144,10 @@ public class VectorIndexHandler extends BaseIndexHandler {
       handleNonDictionaryBasedColumn(segmentWriter, columnMetadata);
     }
 
-    // For v3, write the generated Vector index file into the single file and remove it.
-    if (_segmentDirectory.getSegmentMetadata().getVersion() == SegmentVersion.v3) {
-      LoaderUtils.writeIndexToV3Format(segmentWriter, columnName, vectorIndexFile, StandardIndexes.vector());
-    }
+//    // For v3, write the generated Vector index file into the single file and remove it.
+//    if (_segmentDirectory.getSegmentMetadata().getVersion() == SegmentVersion.v3) {
+//      LoaderUtils.writeIndexToV3Format(segmentWriter, columnName, vectorIndexFile, StandardIndexes.vector());
+//    }
 
     // Delete the marker file.
     FileUtils.deleteQuietly(inProgress);
@@ -155,11 +159,13 @@ public class VectorIndexHandler extends BaseIndexHandler {
       throws Exception {
     File indexDir = _segmentDirectory.getSegmentMetadata().getIndexDir();
     String columnName = columnMetadata.getColumnName();
+    File segmentDirectory = SegmentDirectoryPaths.segmentDirectoryFor(indexDir,
+        _segmentDirectory.getSegmentMetadata().getVersion());
 
     FieldIndexConfigs colIndexConf = _fieldIndexConfigs.get(columnName);
 
     IndexCreationContext context = IndexCreationContext.builder()
-        .withIndexDir(indexDir)
+        .withIndexDir(segmentDirectory)
         .withColumnMetadata(columnMetadata)
         .build();
     VectorIndexConfig config = colIndexConf.getConfig(StandardIndexes.vector());
@@ -183,8 +189,11 @@ public class VectorIndexHandler extends BaseIndexHandler {
       throws Exception {
     File indexDir = _segmentDirectory.getSegmentMetadata().getIndexDir();
     String columnName = columnMetadata.getColumnName();
+    File segmentDirectory = SegmentDirectoryPaths.segmentDirectoryFor(indexDir,
+        _segmentDirectory.getSegmentMetadata().getVersion());
+
     IndexCreationContext context = IndexCreationContext.builder()
-        .withIndexDir(indexDir)
+        .withIndexDir(segmentDirectory)
         .withColumnMetadata(columnMetadata)
         .build();
     VectorIndexConfig config = _fieldIndexConfigs.get(columnName).getConfig(StandardIndexes.vector());

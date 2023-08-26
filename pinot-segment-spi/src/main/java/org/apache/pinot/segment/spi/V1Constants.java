@@ -53,6 +53,8 @@ public class V1Constants {
     public static final String LUCENE_TEXT_INDEX_DOCID_MAPPING_FILE_EXTENSION = ".lucene.mapping";
     public static final String LUCENE_TEXT_INDEX_FILE_EXTENSION = ".lucene.index";
     public static final String VECTOR_INDEX_FILE_EXTENSION = ".vector.idx";
+    public static final String VECTOR_HNSW_INDEX_FILE_EXTENSION = ".vector_hnsw.idx";
+    public static final String VECTOR_HNSW_INDEX_DOCID_MAPPING_FILE_EXTENSION = ".vector_hnsw.mapping";
   }
 
   public static class MetadataKeys {

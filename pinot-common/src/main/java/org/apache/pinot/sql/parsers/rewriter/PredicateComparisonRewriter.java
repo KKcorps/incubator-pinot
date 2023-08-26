@@ -128,6 +128,17 @@ public class PredicateComparisonRewriter implements QueryRewriter {
             break;
           }
           break;
+        case VECTOR_SIMILARITY: {
+          int numOperands = operands.size();
+          for (int i = 1; i < numOperands; i++) {
+            if (operands.get(i).getFunctionCall() == null) {
+              throw new SqlCompilationException(
+                  String.format("For %s predicate, the operands except for the first one must be a function call for vector, got: %s",
+                      filterKind, expression));
+            }
+          }
+          break;
+        }
         default:
           int numOperands = operands.size();
           for (int i = 1; i < numOperands; i++) {

@@ -32,6 +32,7 @@ import org.apache.pinot.common.request.context.predicate.Predicate;
 import org.apache.pinot.common.request.context.predicate.RegexpLikePredicate;
 import org.apache.pinot.common.request.context.predicate.TextContainsPredicate;
 import org.apache.pinot.common.request.context.predicate.TextMatchPredicate;
+import org.apache.pinot.common.request.context.predicate.VectorSimilarityPredicate;
 import org.apache.pinot.core.geospatial.transform.function.StDistanceFunction;
 import org.apache.pinot.core.operator.filter.BaseFilterOperator;
 import org.apache.pinot.core.operator.filter.BitmapBasedFilterOperator;
@@ -44,6 +45,7 @@ import org.apache.pinot.core.operator.filter.JsonMatchFilterOperator;
 import org.apache.pinot.core.operator.filter.MatchAllFilterOperator;
 import org.apache.pinot.core.operator.filter.TextContainsFilterOperator;
 import org.apache.pinot.core.operator.filter.TextMatchFilterOperator;
+import org.apache.pinot.core.operator.filter.VectorSimilarityFilterOperator;
 import org.apache.pinot.core.operator.filter.predicate.FSTBasedRegexpPredicateEvaluatorFactory;
 import org.apache.pinot.core.operator.filter.predicate.PredicateEvaluator;
 import org.apache.pinot.core.operator.filter.predicate.PredicateEvaluatorProvider;
@@ -56,6 +58,7 @@ import org.apache.pinot.segment.spi.index.mutable.ThreadSafeMutableRoaringBitmap
 import org.apache.pinot.segment.spi.index.reader.JsonIndexReader;
 import org.apache.pinot.segment.spi.index.reader.NullValueVectorReader;
 import org.apache.pinot.segment.spi.index.reader.TextIndexReader;
+import org.apache.pinot.segment.spi.index.reader.VectorIndexReader;
 import org.apache.pinot.spi.exception.BadQueryRequestException;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 
@@ -305,6 +308,9 @@ public class FilterPlanNode implements PlanNode {
               } else {
                 return new MatchAllFilterOperator(numDocs);
               }
+            case VECTOR_SIMILARITY:
+              VectorIndexReader vectorIndexReader = dataSource.getVectorIndex();
+              return new VectorSimilarityFilterOperator(vectorIndexReader, (VectorSimilarityPredicate) predicate, numDocs);
             default:
               predicateEvaluator =
                   PredicateEvaluatorProvider.getPredicateEvaluator(predicate, dataSource, _queryContext);

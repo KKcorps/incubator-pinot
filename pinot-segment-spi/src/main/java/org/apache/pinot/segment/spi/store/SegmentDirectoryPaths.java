@@ -84,6 +84,18 @@ public class SegmentDirectoryPaths {
   }
 
   /**
+   * Find text index file in top-level segment index directory
+   * @param indexDir top-level segment index directory
+   * @param column text column name
+   * @return text index directory (if exists in V3, V1 or V2 format), null if index file does not exit
+   */
+  @Nullable
+  public static File findVectorIndexIndexFile(File indexDir, String column) {
+    String luceneIndexDirectory = column + V1Constants.Indexes.VECTOR_HNSW_INDEX_FILE_EXTENSION;
+    return findFormatFile(indexDir, luceneIndexDirectory);
+  }
+
+  /**
    * Find native text index file in top-level segment index directory
    * @param indexDir top-level segment index directory
    * @param column text column name

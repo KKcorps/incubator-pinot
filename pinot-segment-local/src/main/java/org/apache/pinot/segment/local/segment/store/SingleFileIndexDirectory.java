@@ -143,8 +143,17 @@ class SingleFileIndexDirectory extends ColumnIndexDirectory {
     if (type == StandardIndexes.text()) {
       return TextIndexUtils.hasTextIndex(_segmentDirectory, column);
     }
+
+    if (type == StandardIndexes.vector()) {
+      return hasVectorIndex(_segmentDirectory, column);
+    }
+
     IndexKey key = new IndexKey(column, type);
     return _columnEntries.containsKey(key);
+  }
+
+  private boolean hasVectorIndex(File segDir, String column) {
+    return new File(segDir, column + V1Constants.Indexes.VECTOR_HNSW_INDEX_FILE_EXTENSION).exists();
   }
 
   private PinotDataBuffer checkAndGetIndexBuffer(String column, IndexType<?, ?, ?> type) {

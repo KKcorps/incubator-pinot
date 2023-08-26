@@ -289,6 +289,8 @@ public class CalciteSqlParser {
       for (Expression filter : filterExpression.getFunctionCall().getOperands()) {
         validateFilter(filter);
       }
+    } else if (operator.equals(FilterKind.VECTOR_SIMILARITY.name())) {
+      // TODO: Add check that operand should be a vector function
     } else {
       List<Expression> operands = filterExpression.getFunctionCall().getOperands();
       for (int i = 1; i < operands.size(); i++) {

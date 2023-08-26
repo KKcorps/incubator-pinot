@@ -37,9 +37,11 @@ import org.apache.pinot.common.request.context.predicate.RangePredicate;
 import org.apache.pinot.common.request.context.predicate.RegexpLikePredicate;
 import org.apache.pinot.common.request.context.predicate.TextContainsPredicate;
 import org.apache.pinot.common.request.context.predicate.TextMatchPredicate;
+import org.apache.pinot.common.request.context.predicate.VectorSimilarityPredicate;
 import org.apache.pinot.common.utils.RegexpPatternConverterUtils;
 import org.apache.pinot.common.utils.request.RequestUtils;
 import org.apache.pinot.segment.spi.AggregationFunctionType;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.apache.pinot.spi.exception.BadQueryRequestException;
 import org.apache.pinot.sql.FilterKind;
 import org.apache.pinot.sql.parsers.CalciteSqlParser;
@@ -216,6 +218,9 @@ public class RequestContextUtils {
       case IS_NOT_NULL:
         return new FilterContext(FilterContext.Type.PREDICATE, null,
             new IsNotNullPredicate(getExpression(operands.get(0))));
+      case VECTOR_SIMILARITY:
+        return new FilterContext(FilterContext.Type.PREDICATE, null,
+            new VectorSimilarityPredicate(getExpression(operands.get(0)), getVectorValue(operands.get(1))));
       default:
         throw new IllegalStateException();
     }
@@ -345,6 +350,9 @@ public class RequestContextUtils {
         return new FilterContext(FilterContext.Type.PREDICATE, null, new IsNullPredicate(operands.get(0)));
       case IS_NOT_NULL:
         return new FilterContext(FilterContext.Type.PREDICATE, null, new IsNotNullPredicate(operands.get(0)));
+      case VECTOR_SIMILARITY:
+        return new FilterContext(FilterContext.Type.PREDICATE, null,
+            new VectorSimilarityPredicate(operands.get(0), getVectorValue(operands.get(1))));
       default:
         throw new IllegalStateException();
     }
@@ -356,5 +364,30 @@ public class RequestContextUtils {
           "Pinot does not support column or function on the right-hand side of the predicate");
     }
     return expressionContext.getLiteral().getStringValue();
+  }
+
+  private static Vector getVectorValue(ExpressionContext expressionContext) {
+    System.out.println("VALUE:" +  expressionContext.getLiteral().getValue());
+    if(expressionContext.getType() != ExpressionContext.Type.FUNCTION){
+      throw new BadQueryRequestException(
+          "Pinot does not support column or function on the right-hand side of the predicate");
+    }
+    float[] vector = new float[expressionContext.getFunction().getArguments().size()];
+    for(int i = 0; i < expressionContext.getFunction().getArguments().size(); i++){
+      vector[i] = Float.parseFloat(expressionContext.getFunction().getArguments().get(i).getLiteral().getValue().toString());
+    }
+    return new Vector(vector.length, vector);
+  }
+
+  private static Vector getVectorValue(Expression thriftExpression) {
+    if(thriftExpression.getType() != ExpressionType.FUNCTION){
+      throw new BadQueryRequestException(
+          "Pinot does not support column or function on the right-hand side of the predicate");
+    }
+    float[] vector = new float[thriftExpression.getFunctionCall().getOperandsSize()];
+    for(int i = 0; i < thriftExpression.getFunctionCall().getOperandsSize(); i++){
+      vector[i] = Float.parseFloat(Double.toString(thriftExpression.getFunctionCall().getOperands().get(i).getLiteral().getDoubleValue()));
+    }
+    return new Vector(vector.length, vector);
   }
 }

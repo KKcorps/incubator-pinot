@@ -27,6 +27,7 @@ import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.apache.pinot.spi.utils.BooleanUtils;
 import org.apache.pinot.spi.utils.BytesUtils;
 import org.apache.pinot.spi.utils.EqualityUtils;
@@ -59,6 +60,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
   public static final String DEFAULT_DIMENSION_NULL_VALUE_OF_JSON = "null";
   public static final byte[] DEFAULT_DIMENSION_NULL_VALUE_OF_BYTES = new byte[0];
   public static final BigDecimal DEFAULT_DIMENSION_NULL_VALUE_OF_BIG_DECIMAL = BigDecimal.ZERO;
+  public static final String DEFAULT_DIMENSION_NULL_VALUE_OF_VECTOR = "-1";
+
 
   public static final Integer DEFAULT_METRIC_NULL_VALUE_OF_INT = 0;
   public static final Long DEFAULT_METRIC_NULL_VALUE_OF_LONG = 0L;
@@ -67,6 +70,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
   public static final BigDecimal DEFAULT_METRIC_NULL_VALUE_OF_BIG_DECIMAL = BigDecimal.ZERO;
   public static final String DEFAULT_METRIC_NULL_VALUE_OF_STRING = "null";
   public static final byte[] DEFAULT_METRIC_NULL_VALUE_OF_BYTES = new byte[0];
+  public static final String DEFAULT_METRIC_NULL_VALUE_OF_VECTOR = "-1";
+
   public static final FieldSpecMetadata FIELD_SPEC_METADATA;
 
   static {
@@ -99,6 +104,9 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
   protected String _name;
   protected DataType _dataType;
   protected boolean _isSingleValueField = true;
+
+  protected int _vectorLength = 0;
+  protected DataType _vectorDataType;
 
   // NOTE: This only applies to STRING column, which is the max number of characters
   private int _maxLength = DEFAULT_MAX_LENGTH;
@@ -133,6 +141,15 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
     setDefaultNullValue(defaultNullValue);
   }
 
+  public FieldSpec(String name, DataType dataType, DataType vectorDataType, int vectorLength,
+      @Nullable Object defaultNullValue) {
+    _name = name;
+    _dataType = DataType.VECTOR;
+    _vectorLength = vectorLength;
+    _vectorDataType = vectorDataType;
+    setDefaultNullValue(defaultNullValue);
+  }
+
   public abstract FieldType getFieldType();
 
   public String getName() {
@@ -146,6 +163,22 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
 
   public DataType getDataType() {
     return _dataType;
+  }
+
+  public DataType getVectorDataType() {
+    return _vectorDataType;
+  }
+
+  public int getVectorLength() {
+    return _vectorLength;
+  }
+
+  public void setVectorLength(int vectorLength) {
+    _vectorLength = vectorLength;
+  }
+
+  public void setVectorDataType(DataType vectorDataType) {
+    _vectorDataType = vectorDataType;
   }
 
   // Required by JSON de-serializer. DO NOT REMOVE.
@@ -245,6 +278,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
               return DEFAULT_METRIC_NULL_VALUE_OF_STRING;
             case BYTES:
               return DEFAULT_METRIC_NULL_VALUE_OF_BYTES;
+            case VECTOR:
+              return DEFAULT_METRIC_NULL_VALUE_OF_VECTOR;
             default:
               throw new IllegalStateException("Unsupported metric data type: " + dataType);
           }
@@ -272,6 +307,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
               return DEFAULT_DIMENSION_NULL_VALUE_OF_BYTES;
             case BIG_DECIMAL:
               return DEFAULT_DIMENSION_NULL_VALUE_OF_BIG_DECIMAL;
+            case VECTOR:
+              return DEFAULT_DIMENSION_NULL_VALUE_OF_VECTOR;
             default:
               throw new IllegalStateException("Unsupported dimension/time data type: " + dataType);
           }
@@ -315,6 +352,12 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
     if (_maxLength != DEFAULT_MAX_LENGTH) {
       jsonObject.put("maxLength", _maxLength);
     }
+    if (_vectorLength > 0) {
+      jsonObject.put("vectorLength", _vectorLength);
+    }
+    if (_vectorDataType != null) {
+      jsonObject.put("vectorDataType", _vectorDataType.name());
+    }
     appendDefaultNullValue(jsonObject);
     appendTransformFunction(jsonObject);
     return jsonObject;
@@ -353,6 +396,9 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
         case BYTES:
           jsonNode.put(key, BytesUtils.toHexString((byte[]) _defaultNullValue));
           break;
+        case VECTOR:
+          jsonNode.put(key, (_defaultNullValue).toString());
+          break;
         default:
           throw new IllegalStateException("Unsupported data type: " + this);
       }
@@ -381,7 +427,9 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
         .isEqual(_isSingleValueField, that._isSingleValueField) && EqualityUtils
         .isEqual(getStringValue(_defaultNullValue), getStringValue(that._defaultNullValue)) && EqualityUtils
         .isEqual(_maxLength, that._maxLength) && EqualityUtils.isEqual(_transformFunction, that._transformFunction)
-        && EqualityUtils.isEqual(_virtualColumnProvider, that._virtualColumnProvider);
+        && EqualityUtils.isEqual(_virtualColumnProvider, that._virtualColumnProvider)
+        && EqualityUtils.isEqual(_vectorLength, that._vectorLength)
+        && EqualityUtils.isEqual(_vectorDataType, that._vectorDataType);
   }
 
   @Override
@@ -393,6 +441,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
     result = EqualityUtils.hashCodeOf(result, _maxLength);
     result = EqualityUtils.hashCodeOf(result, _transformFunction);
     result = EqualityUtils.hashCodeOf(result, _virtualColumnProvider);
+    result = EqualityUtils.hashCodeOf(result, _vectorLength);
+    result = EqualityUtils.hashCodeOf(result, _vectorDataType);
     return result;
   }
 
@@ -429,7 +479,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
     STRUCT(false, false),
     MAP(false, false),
     LIST(false, false),
-    UNKNOWN(false, true);
+    UNKNOWN(false, true),
+    VECTOR(false, true);
 
     private final DataType _storedType;
     private final int _size;
@@ -525,6 +576,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
             return value;
           case BYTES:
             return BytesUtils.toBytes(value);
+          case VECTOR:
+            return Vector.fromString(value);
           default:
             throw new IllegalStateException();
         }
@@ -558,6 +611,8 @@ public abstract class FieldSpec implements Comparable<FieldSpec>, Serializable {
             return value;
           case BYTES:
             return BytesUtils.toByteArray(value);
+          case VECTOR:
+            return Vector.fromString(value);
           default:
             throw new IllegalStateException();
         }

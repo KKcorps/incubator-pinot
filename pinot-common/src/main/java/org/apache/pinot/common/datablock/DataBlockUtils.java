@@ -32,6 +32,7 @@ import org.apache.pinot.common.CustomObject;
 import org.apache.pinot.common.exception.QueryException;
 import org.apache.pinot.common.response.ProcessingException;
 import org.apache.pinot.common.utils.DataSchema;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.roaringbitmap.RoaringBitmap;
 
 
@@ -553,6 +554,33 @@ public final class DataBlockUtils {
         continue;
       }
       rows[rowId] = dataBlock.getBytes(rowId, columnIndex).getBytes();
+    }
+
+    return rows;
+  }
+
+  /**
+   * Given a datablock and the column index, extracts the byte values for the column. Prefer using this function over
+   * extractRowFromDatablock if the desired datatype is known to prevent autoboxing to Object and later unboxing to the
+   * desired type.
+   * This only works on ROW format.
+   * TODO: Add support for COLUMNAR format.
+   * @return byte array of values in the column
+   */
+  public static Vector[] extractVectorValuesForColumn(DataBlock dataBlock, int columnIndex) {
+    DataSchema dataSchema = dataBlock.getDataSchema();
+    DataSchema.ColumnDataType[] columnDataTypes = dataSchema.getColumnDataTypes();
+
+    // Get null bitmap for the column.
+    RoaringBitmap nullBitmap = extractNullBitmaps(dataBlock)[columnIndex];
+    int numRows = dataBlock.getNumberOfRows();
+
+    Vector[] rows = new Vector[numRows];
+    for (int rowId = 0; rowId < numRows; rowId++) {
+      if (nullBitmap != null && nullBitmap.contains(rowId)) {
+        continue;
+      }
+      rows[rowId] = dataBlock.getVector(rowId, columnIndex);
     }
 
     return rows;

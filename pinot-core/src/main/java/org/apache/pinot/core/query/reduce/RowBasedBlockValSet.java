@@ -26,6 +26,7 @@ import org.apache.pinot.common.utils.PinotDataType;
 import org.apache.pinot.core.common.BlockValSet;
 import org.apache.pinot.segment.spi.index.reader.Dictionary;
 import org.apache.pinot.spi.data.FieldSpec;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.roaringbitmap.RoaringBitmap;
 
 
@@ -159,6 +160,16 @@ public class RowBasedBlockValSet implements BlockValSet {
     BigDecimal[] values = new BigDecimal[length];
     for (int i = 0; i < length; i++) {
       values[i] = _pinotDataType.toBigDecimal(_rows.get(i)[_columnIndex]);
+    }
+    return values;
+  }
+
+  @Override
+  public Vector[] getVectorValuesSV() {
+    int length = _rows.size();
+    Vector[] values = new Vector[length];
+    for (int i = 0; i < length; i++) {
+      values[i] = _pinotDataType.toVector(_rows.get(i)[_columnIndex]);
     }
     return values;
   }

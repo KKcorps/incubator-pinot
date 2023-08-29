@@ -105,6 +105,7 @@ public class ForwardIndexCreatorFactory {
       case BIG_DECIMAL:
       case STRING:
       case BYTES:
+      case VECTOR:
         return new SingleValueVarByteRawIndexCreator(file, compressionType, column, totalDocs, dataType,
             lengthOfLongestEntry, deriveNumDocsPerChunk, writerVersion);
       default:

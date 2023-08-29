@@ -33,6 +33,7 @@ import org.apache.pinot.core.operator.ColumnContext;
 import org.apache.pinot.core.operator.blocks.ValueBlock;
 import org.apache.pinot.core.operator.transform.TransformResultMetadata;
 import org.apache.pinot.spi.data.FieldSpec.DataType;
+import org.apache.pinot.spi.data.readers.Vector;
 
 
 /**
@@ -284,6 +285,24 @@ public class ScalarTransformFunctionWrapper extends BaseTransformFunction {
       _bytesValuesSV[i] = (byte[]) _resultType.toInternal(_functionInvoker.invoke(_scalarArguments));
     }
     return _bytesValuesSV;
+  }
+
+  @Override
+  public Vector[] transformToVectorValuesSV(ValueBlock valueBlock) {
+    if (_resultMetadata.getDataType().getStoredType() != DataType.VECTOR) {
+      return super.transformToVectorValuesSV(valueBlock);
+    }
+    int length = valueBlock.getNumDocs();
+    initVectorValuesSV(length);
+    getNonLiteralValues(valueBlock);
+    for (int i = 0; i < length; i++) {
+      for (int j = 0; j < _numNonLiteralArguments; j++) {
+        _scalarArguments[_nonLiteralIndices[j]] = _nonLiteralValues[j][i];
+      }
+      Object value = _functionInvoker.invoke(_scalarArguments);
+      _vectorValuesSV[i] = value == null ? null : (Vector) _resultType.toInternal(value);
+    }
+    return _vectorValuesSV;
   }
 
   @Override

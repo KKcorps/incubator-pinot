@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.SortedMap;
 import org.apache.lucene.util.IntsRefBuilder;
-import org.apache.lucene.util.fst.Builder;
 import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.FSTCompiler;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.apache.lucene.util.fst.Util;
 import org.slf4j.Logger;
@@ -36,19 +36,19 @@ import org.slf4j.LoggerFactory;
  */
 public class FSTBuilder {
   public static final Logger LOGGER = LoggerFactory.getLogger(FSTBuilder.class);
-  private Builder<Long> _builder = new Builder<>(FST.INPUT_TYPE.BYTE4, PositiveIntOutputs.getSingleton());
+  private FSTCompiler<Long> _builder = new FSTCompiler<>(FST.INPUT_TYPE.BYTE4, PositiveIntOutputs.getSingleton());
   private IntsRefBuilder _scratch = new IntsRefBuilder();
 
   public static FST buildFST(SortedMap<String, Integer> input)
       throws IOException {
     PositiveIntOutputs fstOutput = PositiveIntOutputs.getSingleton();
-    Builder<Long> builder = new Builder<Long>(FST.INPUT_TYPE.BYTE4, fstOutput);
+    FSTCompiler<Long> builder = new FSTCompiler<Long>(FST.INPUT_TYPE.BYTE4, fstOutput);
 
     IntsRefBuilder scratch = new IntsRefBuilder();
     for (Map.Entry<String, Integer> entry : input.entrySet()) {
       builder.add(Util.toUTF16(entry.getKey(), scratch), entry.getValue().longValue());
     }
-    FST<Long> result = builder.finish();
+    FST<Long> result = builder.compile();
     return result;
   }
 
@@ -59,6 +59,6 @@ public class FSTBuilder {
 
   public FST done()
       throws IOException {
-    return _builder.finish();
+    return _builder.compile();
   }
 }

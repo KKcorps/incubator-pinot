@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import org.apache.pinot.common.datatable.DataTable;
 import org.apache.pinot.spi.data.FieldSpec.DataType;
+import org.apache.pinot.spi.data.readers.Vector;
 import org.apache.pinot.spi.utils.ByteArray;
 import org.apache.pinot.spi.utils.BytesUtils;
 import org.apache.pinot.spi.utils.EqualityUtils;
@@ -204,6 +205,7 @@ public class DataSchema {
     STRING(""),
     JSON(STRING, ""),
     BYTES(new ByteArray(new byte[0])),
+    VECTOR(null),
     OBJECT(null),
     INT_ARRAY(new int[0]),
     LONG_ARRAY(new long[0]),
@@ -327,6 +329,8 @@ public class DataSchema {
         case BYTES:
         case BYTES_ARRAY:
           return DataType.BYTES;
+        case VECTOR:
+          return DataType.VECTOR;
         case UNKNOWN:
           return DataType.UNKNOWN;
         default:
@@ -362,6 +366,8 @@ public class DataSchema {
           return value.toString();
         case BYTES:
           return ((ByteArray) value).getBytes();
+        case VECTOR:
+          return (float[]) value;
         case INT_ARRAY:
           return toIntArray(value);
         case LONG_ARRAY:
@@ -433,6 +439,8 @@ public class DataSchema {
           return value.toString();
         case BYTES:
           return ((ByteArray) value).toHexString();
+        case VECTOR:
+          return Vector.fromBytes(((ByteArray) value).getBytes()).toString();
         case INT_ARRAY:
           return (int[]) value;
         case LONG_ARRAY:
@@ -599,6 +607,8 @@ public class DataSchema {
           return JSON;
         case BYTES:
           return BYTES;
+        case VECTOR:
+          return VECTOR;
         case UNKNOWN:
           return UNKNOWN;
         default:

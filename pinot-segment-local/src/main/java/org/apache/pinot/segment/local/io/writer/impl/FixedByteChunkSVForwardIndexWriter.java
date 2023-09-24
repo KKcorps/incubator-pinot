@@ -24,6 +24,7 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.pinot.segment.spi.compression.ChunkCompressionType;
 
+
 /**
  * Class to write out fixed length bytes into a single column.
  * Client responsible to ensure that they call the correct set method that

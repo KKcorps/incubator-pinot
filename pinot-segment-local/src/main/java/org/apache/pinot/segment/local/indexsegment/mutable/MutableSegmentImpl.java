@@ -178,6 +178,9 @@ public class MutableSegmentImpl implements MutableSegment {
   private final ThreadSafeMutableRoaringBitmap _validDocIds;
   private final ThreadSafeMutableRoaringBitmap _queryableDocIds;
 
+  private final List<GenericRow> _batchRows = new ArrayList<>();
+  private final List<Integer> _batchDocIds = new ArrayList<>();
+
   public MutableSegmentImpl(RealtimeSegmentConfig config, @Nullable ServerMetrics serverMetrics) {
     _serverMetrics = serverMetrics;
     _realtimeTableName = config.getTableNameWithType();
@@ -485,6 +488,9 @@ public class MutableSegmentImpl implements MutableSegment {
   @Override
   public boolean index(GenericRow row, @Nullable RowMetadata rowMetadata)
       throws IOException {
+
+    boolean columnMajorEnabled = true;
+
     boolean canTakeMore;
     int numDocsIndexed = _numDocsIndexed;
 
@@ -520,21 +526,52 @@ public class MutableSegmentImpl implements MutableSegment {
       canTakeMore = numDocsIndexed < _capacity;
     } else {
       // Update dictionary first
-      updateDictionary(row);
+      if (!columnMajorEnabled) {
+        updateDictionary(row);
 
-      // If metrics aggregation is enabled and if the dimension values were already seen, this will return existing
-      // docId, else this will return a new docId.
-      int docId = getOrCreateDocId();
+        // If metrics aggregation is enabled and if the dimension values were already seen, this will return existing
+        // docId, else this will return a new docId.
+        int docId = getOrCreateDocId();
 
-      if (docId == numDocsIndexed) {
-        // New row
-        addNewRow(numDocsIndexed, row);
-        // Update number of documents indexed at last to make the latest row queryable
-        canTakeMore = numDocsIndexed++ < _capacity;
+        if (docId == numDocsIndexed) {
+          // New row
+          addNewRow(numDocsIndexed, row);
+          // Update number of documents indexed at last to make the latest row queryable
+          canTakeMore = numDocsIndexed++ < _capacity;
+        } else {
+          assert isAggregateMetricsEnabled();
+          aggregateMetrics(row, docId);
+          canTakeMore = true;
+        }
       } else {
-        assert isAggregateMetricsEnabled();
-        aggregateMetrics(row, docId);
-        canTakeMore = true;
+        int BATCH_SIZE = 1000;
+
+        _batchRows.add(row.copy());
+
+        // If metrics aggregation is enabled and if the dimension values were already seen, this will return existing
+        // docId, else this will return a new docId.
+        int docId = getOrCreateDocId();
+        _batchDocIds.add(docId);
+
+        numDocsIndexed++;
+        canTakeMore = numDocsIndexed < _capacity;
+        if (_batchRows.size() == BATCH_SIZE || !canTakeMore) {
+          // New row
+          updateDictionary(_batchRows);
+
+          addNewRow(_batchDocIds, _batchRows);
+          // Update number of documents indexed at last to make the latest row queryable
+          canTakeMore = numDocsIndexed < _capacity;
+
+          _batchRows.clear();
+          _batchDocIds.clear();
+        } else if (isAggregateMetricsEnabled()) {
+//          assert isAggregateMetricsEnabled();
+          aggregateMetrics(row, docId);
+          canTakeMore = true;
+        } else {
+          canTakeMore = true;
+        }
       }
     }
     _numDocsIndexed = numDocsIndexed;
@@ -616,6 +653,35 @@ public class MutableSegmentImpl implements MutableSegment {
         indexContainer._minValue = dictionary.getMinVal();
         indexContainer._maxValue = dictionary.getMaxVal();
       }
+    }
+  }
+
+  private void updateDictionary(List<GenericRow> rows) {
+    for (Map.Entry<String, IndexContainer> entry : _indexContainerMap.entrySet()) {
+      IndexContainer indexContainer = entry.getValue();
+      MutableDictionary dictionary = indexContainer._dictionary;
+      if (dictionary == null) {
+        continue;
+      }
+
+
+      boolean isSingleValueField = indexContainer._fieldSpec.isSingleValueField();
+      for (GenericRow row : rows) {
+        Object value = row.getValue(entry.getKey());
+        if (value == null) {
+          recordIndexingError("DICTIONARY");
+        } else {
+          if (isSingleValueField) {
+            indexContainer._dictId = dictionary.index(value);
+          } else {
+            indexContainer._dictIds = dictionary.index((Object[]) value);
+          }
+        }
+      }
+
+      // Update min/max value from dictionary
+      indexContainer._minValue = dictionary.getMinVal();
+      indexContainer._maxValue = dictionary.getMaxVal();
     }
   }
 
@@ -749,6 +815,143 @@ public class MutableSegmentImpl implements MutableSegment {
     }
   }
 
+  private void addNewRow(List<Integer> docIds, List<GenericRow> rows) {
+    for (Map.Entry<String, IndexContainer> entry : _indexContainerMap.entrySet()) {
+      String column = entry.getKey();
+      IndexContainer indexContainer = entry.getValue();
+
+      // aggregate metrics is enabled.
+      MutableIndex forwardIndex = null;
+      FieldSpec fieldSpec = indexContainer._fieldSpec;
+      DataType dataType = fieldSpec.getDataType();
+      boolean isSingleValueField = fieldSpec.isSingleValueField();
+      boolean isPartitionColumn = column.equals(_partitionColumn);
+
+      for (int i = 0; i < docIds.size(); i++) {
+        int docId = docIds.get(i);
+        GenericRow row = rows.get(i);
+
+        if (indexContainer._valueAggregator != null) {
+
+          // Update numValues info
+          indexContainer._valuesInfo.updateSVNumValues();
+
+          if (forwardIndex == null) {
+            forwardIndex = indexContainer._mutableIndexes.get(StandardIndexes.forward());
+          }
+
+
+          Object value = row.getValue(indexContainer._sourceColumn);
+          value = indexContainer._valueAggregator.getInitialAggregatedValue(value);
+          // BIG_DECIMAL is actually stored as byte[] and hence can be supported here.
+          switch (dataType.getStoredType()) {
+            case INT:
+              forwardIndex.add(((Number) value).intValue(), -1, docId);
+              break;
+            case LONG:
+              forwardIndex.add(((Number) value).longValue(), -1, docId);
+              break;
+            case FLOAT:
+              forwardIndex.add(((Number) value).floatValue(), -1, docId);
+              break;
+            case DOUBLE:
+              forwardIndex.add(((Number) value).doubleValue(), -1, docId);
+              break;
+            case BIG_DECIMAL:
+            case BYTES:
+              forwardIndex.add(indexContainer._valueAggregator.serializeAggregatedValue(value), -1, docId);
+              break;
+            default:
+              throw new UnsupportedOperationException("Unsupported data type: " + dataType + " for aggregation: " + column);
+          }
+          continue;
+        }
+
+        // Update the null value vector even if a null value is somehow produced
+        if (indexContainer._nullValueVector != null && row.isNullValue(column)) {
+          indexContainer._nullValueVector.setNull(docId);
+        }
+
+        Object value = row.getValue(column);
+        if (value == null) {
+          // the value should not be null unless something is broken upstream but this will lead to inappropriate reuse
+          // of the dictionary id if this somehow happens. An NPE here can corrupt indexes leading to incorrect query
+          // results, hence the extra care. A metric will already have been emitted when trying to update the dictionary.
+          continue;
+        }
+
+        if (isSingleValueField) {
+          // Check partitions
+          if (isPartitionColumn) {
+            String stringValue = dataType.toString(value);
+            int partition = _partitionFunction.getPartition(stringValue);
+            if (partition != _mainPartitionId) {
+              if (indexContainer._partitions.add(partition)) {
+                // for every partition other than mainPartitionId, log a warning once
+                _logger.warn("Found new partition: {} from partition column: {}, value: {}", partition, column,
+                    stringValue);
+              }
+              // always emit a metric when a partition other than mainPartitionId is detected
+              if (_serverMetrics != null) {
+                _serverMetrics.addMeteredTableValue(_realtimeTableName, ServerMeter.REALTIME_PARTITION_MISMATCH, 1);
+              }
+            }
+          }
+
+          // Update numValues info
+          indexContainer._valuesInfo.updateSVNumValues();
+
+          // Update indexes
+          int dictId = indexContainer._dictId;
+          for (Map.Entry<IndexType, MutableIndex> indexEntry : indexContainer._mutableIndexes.entrySet()) {
+            try {
+              indexEntry.getValue().add(value, dictId, docId);
+            } catch (Exception e) {
+              recordIndexingError(indexEntry.getKey(), e);
+            }
+          }
+
+          if (dictId < 0) {
+            // Update min/max value from raw value
+            // NOTE: Skip updating min/max value for aggregated metrics because the value will change over time.
+            if (!isAggregateMetricsEnabled() || fieldSpec.getFieldType() != FieldSpec.FieldType.METRIC) {
+              Comparable comparable;
+              if (dataType == BYTES) {
+                comparable = new ByteArray((byte[]) value);
+              } else {
+                comparable = (Comparable) value;
+              }
+              if (indexContainer._minValue == null) {
+                indexContainer._minValue = comparable;
+                indexContainer._maxValue = comparable;
+              } else {
+                if (comparable.compareTo(indexContainer._minValue) < 0) {
+                  indexContainer._minValue = comparable;
+                }
+                if (comparable.compareTo(indexContainer._maxValue) > 0) {
+                  indexContainer._maxValue = comparable;
+                }
+              }
+            }
+          }
+        } else {
+          // Multi-value column
+
+          int[] dictIds = indexContainer._dictIds;
+          indexContainer._valuesInfo.updateVarByteMVMaxRowLengthInBytes(value, dataType.getStoredType());
+          Object[] values = (Object[]) value;
+          for (Map.Entry<IndexType, MutableIndex> indexEntry : indexContainer._mutableIndexes.entrySet()) {
+            try {
+              indexEntry.getValue().add(values, dictIds, docId);
+            } catch (Exception e) {
+              recordIndexingError(indexEntry.getKey(), e);
+            }
+          }
+          indexContainer._valuesInfo.updateMVNumValues(values.length);
+        }
+      }
+    }
+  }
   private void recordIndexingError(IndexType<?, ?, ?> indexType, Exception exception) {
     _logger.error("failed to index value with {}", indexType, exception);
     if (_serverMetrics != null) {

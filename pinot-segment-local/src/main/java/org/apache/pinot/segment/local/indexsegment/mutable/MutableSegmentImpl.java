@@ -672,7 +672,9 @@ public class MutableSegmentImpl implements MutableSegment {
           recordIndexingError("DICTIONARY");
         } else {
           if (isSingleValueField) {
-            indexContainer._dictId = dictionary.index(value);
+            int dicId = dictionary.index(value);
+            indexContainer._dictId = dicId;
+            indexContainer._batchDictIds.add(dicId);
           } else {
             indexContainer._dictIds = dictionary.index((Object[]) value);
           }
@@ -902,9 +904,11 @@ public class MutableSegmentImpl implements MutableSegment {
           indexContainer._valuesInfo.updateSVNumValues();
 
           // Update indexes
-          int dictId = indexContainer._dictId;
+          // FIX ME: Don't use latest dictID for all rows
+          int dictId = indexContainer._batchDictIds.get(i);
           for (Map.Entry<IndexType, MutableIndex> indexEntry : indexContainer._mutableIndexes.entrySet()) {
             try {
+
               indexEntry.getValue().add(value, dictId, docId);
             } catch (Exception e) {
               recordIndexingError(indexEntry.getKey(), e);
@@ -1499,6 +1503,8 @@ public class MutableSegmentImpl implements MutableSegment {
      * It is set on {@link #updateDictionary(GenericRow)} and read in {@link #addNewRow(int, GenericRow)}
      */
     int[] _dictIds;
+
+    List<Integer> _batchDictIds = new ArrayList<>();
 
     IndexContainer(FieldSpec fieldSpec, @Nullable PartitionFunction partitionFunction,
         @Nullable Set<Integer> partitions, ValuesInfo valuesInfo, Map<IndexType, MutableIndex> mutableIndexes,

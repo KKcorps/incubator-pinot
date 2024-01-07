@@ -181,6 +181,10 @@ public class MutableSegmentImpl implements MutableSegment {
   private final List<GenericRow> _batchRows = new ArrayList<>();
   private final List<Integer> _batchDocIds = new ArrayList<>();
 
+  private final boolean _columnMajorIndexingEnabled;
+
+  private final int _columnMajorIndexingBatchSize;
+
   public MutableSegmentImpl(RealtimeSegmentConfig config, @Nullable ServerMetrics serverMetrics) {
     _serverMetrics = serverMetrics;
     _realtimeTableName = config.getTableNameWithType();
@@ -220,6 +224,9 @@ public class MutableSegmentImpl implements MutableSegment {
     _mainPartitionId = config.getPartitionId();
     _nullHandlingEnabled = config.isNullHandlingEnabled();
 
+    _columnMajorIndexingEnabled = config.isColumnMajorIndexing();
+    _columnMajorIndexingBatchSize = config.getColumnMajorBatchSize();
+
     Collection<FieldSpec> allFieldSpecs = _schema.getAllFieldSpecs();
     List<FieldSpec> physicalFieldSpecs = new ArrayList<>(allFieldSpecs.size());
     List<DimensionFieldSpec> physicalDimensionFieldSpecs = new ArrayList<>(_schema.getDimensionNames().size());
@@ -248,6 +255,10 @@ public class MutableSegmentImpl implements MutableSegment {
 
     _logger =
         LoggerFactory.getLogger(MutableSegmentImpl.class.getName() + "_" + _segmentName + "_" + config.getStreamName());
+
+    if (_columnMajorIndexingEnabled) {
+      _logger.info("Column major indexing enabled with batch size {}", _columnMajorIndexingBatchSize);
+    }
 
     // Metric aggregation can be enabled only if config is specified, and all dimensions have dictionary,
     // and no metrics have dictionary. If not enabled, the map returned is null.
@@ -489,8 +500,6 @@ public class MutableSegmentImpl implements MutableSegment {
   public boolean index(GenericRow row, @Nullable RowMetadata rowMetadata)
       throws IOException {
 
-    boolean columnMajorEnabled = true;
-
     boolean canTakeMore;
     int numDocsIndexed = _numDocsIndexed;
 
@@ -526,7 +535,7 @@ public class MutableSegmentImpl implements MutableSegment {
       canTakeMore = numDocsIndexed < _capacity;
     } else {
       // Update dictionary first
-      if (!columnMajorEnabled) {
+      if (!_columnMajorIndexingEnabled) {
         updateDictionary(row);
 
         // If metrics aggregation is enabled and if the dimension values were already seen, this will return existing
@@ -544,8 +553,6 @@ public class MutableSegmentImpl implements MutableSegment {
           canTakeMore = true;
         }
       } else {
-        int BATCH_SIZE = 1000;
-
         _batchRows.add(row.copy());
 
         // If metrics aggregation is enabled and if the dimension values were already seen, this will return existing
@@ -555,16 +562,18 @@ public class MutableSegmentImpl implements MutableSegment {
 
         numDocsIndexed++;
         canTakeMore = numDocsIndexed < _capacity;
-        if (_batchRows.size() == BATCH_SIZE || !canTakeMore) {
+        // FIXME: Flush the remaining batch on segment close or if too much time has passed since the last flush
+        if (_batchRows.size() == _columnMajorIndexingBatchSize || !canTakeMore) {
           // New row
           updateDictionary(_batchRows);
 
           addNewRow(_batchDocIds, _batchRows);
           // Update number of documents indexed at last to make the latest row queryable
-          canTakeMore = numDocsIndexed < _capacity;
+//          canTakeMore = numDocsIndexed < _capacity;
 
           _batchRows.clear();
           _batchDocIds.clear();
+
         } else if (isAggregateMetricsEnabled()) {
 //          assert isAggregateMetricsEnabled();
           aggregateMetrics(row, docId);
@@ -938,6 +947,7 @@ public class MutableSegmentImpl implements MutableSegment {
               }
             }
           }
+
         } else {
           // Multi-value column
 
@@ -954,6 +964,8 @@ public class MutableSegmentImpl implements MutableSegment {
           indexContainer._valuesInfo.updateMVNumValues(values.length);
         }
       }
+
+      indexContainer._batchDictIds.clear();
     }
   }
   private void recordIndexingError(IndexType<?, ?, ?> indexType, Exception exception) {

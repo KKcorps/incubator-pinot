@@ -1464,7 +1464,9 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
             .setUpsertDeleteRecordColumn(tableConfig.getUpsertDeleteRecordColumn())
             .setUpsertOutOfOrderRecordColumn(tableConfig.getOutOfOrderRecordColumn())
             .setUpsertDropOutOfOrderRecord(tableConfig.isDropOutOfOrderRecord())
-            .setFieldConfigList(tableConfig.getFieldConfigList());
+            .setFieldConfigList(tableConfig.getFieldConfigList())
+            .setColumnMajorIndexing(tableConfig.getIndexingConfig().isColumnMajorIndexingEnabled())
+            .setColumnMajorBatchSize(tableConfig.getIndexingConfig().getColumnMajorIndexingBatchSize());
 
     // Create message decoder
     Set<String> fieldsToRead = IngestionUtils.getFieldsForRecordExtractor(_tableConfig.getIngestionConfig(), _schema);

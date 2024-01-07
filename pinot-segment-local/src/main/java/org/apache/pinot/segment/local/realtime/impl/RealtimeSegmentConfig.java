@@ -71,6 +71,10 @@ public class RealtimeSegmentConfig {
   private final List<FieldConfig> _fieldConfigList;
   private final List<AggregationConfig> _ingestionAggregationConfigs;
 
+  private final boolean _columnMajorIndexing;
+  private final int _columnMajorBatchSize;
+
+
   // TODO: Clean up this constructor. Most of these things can be extracted from tableConfig.
   private RealtimeSegmentConfig(String tableNameWithType, String segmentName, String streamName, Schema schema,
       String timeColumnName, int capacity, int avgNumMultiValues, Map<String, FieldIndexConfigs> indexConfigByCol,
@@ -81,7 +85,7 @@ public class RealtimeSegmentConfig {
       String upsertDeleteRecordColumn, String upsertOutOfOrderRecordColumn, boolean upsertDropOutOfOrderRecord,
       PartitionUpsertMetadataManager partitionUpsertMetadataManager,
       PartitionDedupMetadataManager partitionDedupMetadataManager, List<FieldConfig> fieldConfigList,
-      List<AggregationConfig> ingestionAggregationConfigs) {
+      List<AggregationConfig> ingestionAggregationConfigs, boolean columnMajorIndexing, int columnMajorBatchSize) {
     _tableNameWithType = tableNameWithType;
     _segmentName = segmentName;
     _streamName = streamName;
@@ -109,6 +113,8 @@ public class RealtimeSegmentConfig {
     _partitionDedupMetadataManager = partitionDedupMetadataManager;
     _fieldConfigList = fieldConfigList;
     _ingestionAggregationConfigs = ingestionAggregationConfigs;
+    _columnMajorIndexing = columnMajorIndexing;
+    _columnMajorBatchSize = columnMajorBatchSize;
   }
 
   public String getTableNameWithType() {
@@ -224,6 +230,14 @@ public class RealtimeSegmentConfig {
     return _ingestionAggregationConfigs;
   }
 
+  public boolean isColumnMajorIndexing() {
+    return _columnMajorIndexing;
+  }
+
+  public int getColumnMajorBatchSize() {
+    return _columnMajorBatchSize;
+  }
+
   public static class Builder {
     private String _tableNameWithType;
     private String _segmentName;
@@ -252,6 +266,9 @@ public class RealtimeSegmentConfig {
     private PartitionDedupMetadataManager _partitionDedupMetadataManager;
     private List<FieldConfig> _fieldConfigList;
     private List<AggregationConfig> _ingestionAggregationConfigs;
+
+    private boolean _columnMajorIndexing = false;
+    private int _columnMajorBatchSize = 1000;
 
     public Builder() {
       _indexConfigByCol = new HashMap<>();
@@ -418,6 +435,16 @@ public class RealtimeSegmentConfig {
       return this;
     }
 
+    public Builder setColumnMajorIndexing(boolean columnMajorIndexing) {
+      _columnMajorIndexing = columnMajorIndexing;
+      return this;
+    }
+
+    public Builder setColumnMajorBatchSize(int columnMajorBatchSize) {
+      _columnMajorBatchSize = columnMajorBatchSize;
+      return this;
+    }
+
     public RealtimeSegmentConfig build() {
       Map<String, FieldIndexConfigs> indexConfigByCol = Maps.newHashMapWithExpectedSize(_indexConfigByCol.size());
       for (Map.Entry<String, FieldIndexConfigs.Builder> entry : _indexConfigByCol.entrySet()) {
@@ -430,7 +457,7 @@ public class RealtimeSegmentConfig {
           _nullHandlingEnabled, _consumerDir, _upsertMode, _upsertComparisonColumns, _upsertDeleteRecordColumn,
           _upsertOutOfOrderRecordColumn, _upsertDropOutOfOrderRecord,
           _partitionUpsertMetadataManager, _partitionDedupMetadataManager, _fieldConfigList,
-          _ingestionAggregationConfigs);
+          _ingestionAggregationConfigs, _columnMajorIndexing, _columnMajorBatchSize);
     }
   }
 }

@@ -64,6 +64,10 @@ public class IndexingConfig extends BaseJsonConfig {
   private boolean _nullHandlingEnabled;
   private boolean _columnMajorSegmentBuilderEnabled = false;
 
+  private boolean _columnMajorIndexingEnabled = false;
+
+  private int _columnMajorIndexingBatchSize = 1000;
+
   /**
    * If `optimizeDictionary` enabled, dictionary is not created for the high-cardinality
    * single-valued columns for which rawIndexSize / forwardIndexSize is less than the `noDictionarySizeRatioThreshold`.
@@ -383,5 +387,21 @@ public class IndexingConfig extends BaseJsonConfig {
 
   public void setSegmentNameGeneratorType(String segmentNameGeneratorType) {
     _segmentNameGeneratorType = segmentNameGeneratorType;
+  }
+
+  public boolean isColumnMajorIndexingEnabled() {
+    return _columnMajorIndexingEnabled;
+  }
+
+  public void setColumnMajorIndexingEnabled(boolean columnMajorIndexingEnabled) {
+    _columnMajorIndexingEnabled = columnMajorIndexingEnabled;
+  }
+
+  public int getColumnMajorIndexingBatchSize() {
+    return _columnMajorIndexingBatchSize;
+  }
+
+  public void setColumnMajorIndexingBatchSize(int columnMajorIndexingBatchSize) {
+    _columnMajorIndexingBatchSize = columnMajorIndexingBatchSize;
   }
 }

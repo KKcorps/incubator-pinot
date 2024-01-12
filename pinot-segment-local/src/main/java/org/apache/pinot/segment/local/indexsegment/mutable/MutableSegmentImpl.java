@@ -564,6 +564,8 @@ public class MutableSegmentImpl implements MutableSegment {
         canTakeMore = numDocsIndexed < _capacity;
         // FIXME: Flush the remaining batch on segment close or if too much time has passed since the last flush
         if (_batchRows.size() == _columnMajorIndexingBatchSize || !canTakeMore) {
+          _logger.info("Flushing batch of {} rows in column major indexing for table {}", _batchRows.size(),
+              _realtimeTableName);
           // New row
           updateDictionary(_batchRows);
 

@@ -273,51 +273,21 @@
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER() FROM a GROUP BY a.col3",
         "output": [
           "Execution Plan",
-          "\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)])",
-          "\n  LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])",
-          "\n    PinotLogicalExchange(distribution=[hash])",
-          "\n      LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n        LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n          PinotLogicalExchange(distribution=[hash[0]])",
-          "\n            LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n              LogicalTableScan(table=[[a]])",
-          "\n"
+          "\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)])\n  LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])\n    PinotLogicalExchange(distribution=[hash])\n      LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n        LogicalAggregate(group=[{0}])\n          PinotLogicalExchange(distribution=[hash[0]])\n            LogicalAggregate(group=[{2}])\n              LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
         "description": "single empty OVER() with aggregate avg and group by and order by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER() FROM a GROUP BY a.col3 ORDER BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalSort(sort0=[$2], dir0=[ASC])",
-          "\n  PinotLogicalSortExchange(distribution=[hash], collation=[[2]], isSortOnSender=[false], isSortOnReceiver=[true])",
-          "\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], col3=[$0])",
-          "\n      LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])",
-          "\n        PinotLogicalExchange(distribution=[hash])",
-          "\n          LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n            LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n              PinotLogicalExchange(distribution=[hash[0]])",
-          "\n                LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n                  LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalSort(sort0=[$2], dir0=[ASC])\n  PinotLogicalSortExchange(distribution=[hash], collation=[[2]], isSortOnSender=[false], isSortOnReceiver=[true])\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], col3=[$0])\n      LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])\n        PinotLogicalExchange(distribution=[hash])\n          LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n            LogicalAggregate(group=[{0}])\n              PinotLogicalExchange(distribution=[hash[0]])\n                LogicalAggregate(group=[{2}])\n                  LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
         "description": "single empty OVER() row_number with aggregate avg and group by and order by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), ROW_NUMBER() OVER() FROM a GROUP BY a.col3 ORDER BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalSort(sort0=[$2], dir0=[ASC])",
-          "\n  PinotLogicalSortExchange(distribution=[hash], collation=[[2]], isSortOnSender=[false], isSortOnReceiver=[true])",
-          "\n    LogicalProject(EXPR$0=[$1], EXPR$1=[$2], col3=[$0])",
-          "\n      LogicalWindow(window#0=[window( rows between UNBOUNDED PRECEDING and CURRENT ROW aggs [ROW_NUMBER()])])",
-          "\n        PinotLogicalExchange(distribution=[hash])",
-          "\n          LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n            LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n              PinotLogicalExchange(distribution=[hash[0]])",
-          "\n                LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n                  LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalSort(sort0=[$2], dir0=[ASC])\n  PinotLogicalSortExchange(distribution=[hash], collation=[[2]], isSortOnSender=[false], isSortOnReceiver=[true])\n    LogicalProject(EXPR$0=[$1], EXPR$1=[$2], col3=[$0])\n      LogicalWindow(window#0=[window( rows between UNBOUNDED PRECEDING and CURRENT ROW aggs [ROW_NUMBER()])])\n        PinotLogicalExchange(distribution=[hash])\n          LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n            LogicalAggregate(group=[{0}])\n              PinotLogicalExchange(distribution=[hash[0]])\n                LogicalAggregate(group=[{2}])\n                  LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
@@ -526,34 +496,14 @@
         "description": "multiple empty OVER()s with aggregate avg and group by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER(), SUM(a.col3) OVER() FROM a GROUP BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$2])",
-          "\n  LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])",
-          "\n    PinotLogicalExchange(distribution=[hash])",
-          "\n      LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n        LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n          PinotLogicalExchange(distribution=[hash[0]])",
-          "\n            LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n              LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$2])\n  LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])\n    PinotLogicalExchange(distribution=[hash])\n      LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n        LogicalAggregate(group=[{0}])\n          PinotLogicalExchange(distribution=[hash[0]])\n            LogicalAggregate(group=[{2}])\n              LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
         "description": "single empty OVER() with aggregate avg and group by and order by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER(), SUM(a.col3) OVER() FROM a GROUP BY a.col3 ORDER BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalSort(sort0=[$3], dir0=[ASC])",
-          "\n  PinotLogicalSortExchange(distribution=[hash], collation=[[3]], isSortOnSender=[false], isSortOnReceiver=[true])",
-          "\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$2], col3=[$0])",
-          "\n      LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])",
-          "\n        PinotLogicalExchange(distribution=[hash])",
-          "\n          LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n            LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n              PinotLogicalExchange(distribution=[hash[0]])",
-          "\n                LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n                  LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalSort(sort0=[$3], dir0=[ASC])\n  PinotLogicalSortExchange(distribution=[hash], collation=[[3]], isSortOnSender=[false], isSortOnReceiver=[true])\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$2], col3=[$0])\n      LogicalWindow(window#0=[window(aggs [SUM($0), COUNT($0)])])\n        PinotLogicalExchange(distribution=[hash])\n          LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n            LogicalAggregate(group=[{0}])\n              PinotLogicalExchange(distribution=[hash[0]])\n                LogicalAggregate(group=[{2}])\n                  LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
@@ -857,34 +807,14 @@
         "description": "single OVER(PARTITION BY) with aggregate avg and group by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER(PARTITION BY a.col3) FROM a GROUP BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)])",
-          "\n  LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0)])])",
-          "\n    PinotLogicalExchange(distribution=[hash[0]])",
-          "\n      LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n        LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n          PinotLogicalExchange(distribution=[hash[0]])",
-          "\n            LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n              LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)])\n  LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0)])])\n    PinotLogicalExchange(distribution=[hash[0]])\n      LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n        LogicalAggregate(group=[{0}])\n          PinotLogicalExchange(distribution=[hash[0]])\n            LogicalAggregate(group=[{2}])\n              LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
         "description": "single OVER(PARTITION BY) with aggregate avg and group by and order by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER(PARTITION BY a.col3) FROM a GROUP BY a.col3 ORDER BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalSort(sort0=[$2], dir0=[ASC])",
-          "\n  PinotLogicalSortExchange(distribution=[hash], collation=[[2]], isSortOnSender=[false], isSortOnReceiver=[true])",
-          "\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], col3=[$0])",
-          "\n      LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0)])])",
-          "\n        PinotLogicalExchange(distribution=[hash[0]])",
-          "\n          LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n            LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n              PinotLogicalExchange(distribution=[hash[0]])",
-          "\n                LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n                  LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalSort(sort0=[$2], dir0=[ASC])\n  PinotLogicalSortExchange(distribution=[hash], collation=[[2]], isSortOnSender=[false], isSortOnReceiver=[true])\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], col3=[$0])\n      LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0)])])\n        PinotLogicalExchange(distribution=[hash[0]])\n          LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n            LogicalAggregate(group=[{0}])\n              PinotLogicalExchange(distribution=[hash[0]])\n                LogicalAggregate(group=[{2}])\n                  LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
@@ -1180,34 +1110,14 @@
         "description": "multiple OVER(PARTITION BY)s with aggregate avg and group by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER(PARTITION BY a.col3), MAX(a.col3) OVER(PARTITION BY a.col3) FROM a GROUP BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$4])",
-          "\n  LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0), MAX($0)])])",
-          "\n    PinotLogicalExchange(distribution=[hash[0]])",
-          "\n      LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n        LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n          PinotLogicalExchange(distribution=[hash[0]])",
-          "\n            LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n              LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$4])\n  LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0), MAX($0)])])\n    PinotLogicalExchange(distribution=[hash[0]])\n      LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n        LogicalAggregate(group=[{0}])\n          PinotLogicalExchange(distribution=[hash[0]])\n            LogicalAggregate(group=[{2}])\n              LogicalTableScan(table=[[a]])\n"
         ]
       },
       {
         "description": "multiple OVER(PARTITION BY)s with aggregate avg and group by and order by",
         "sql": "EXPLAIN PLAN FOR SELECT AVG(a.col3), AVG(a.col3) OVER(PARTITION BY a.col3), MAX(a.col3) OVER(PARTITION BY a.col3) FROM a GROUP BY a.col3 ORDER BY a.col3",
         "output": [
-          "Execution Plan",
-          "\nLogicalSort(sort0=[$3], dir0=[ASC])",
-          "\n  PinotLogicalSortExchange(distribution=[hash], collation=[[3]], isSortOnSender=[false], isSortOnReceiver=[true])",
-          "\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$4], col3=[$0])",
-          "\n      LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0), MAX($0)])])",
-          "\n        PinotLogicalExchange(distribution=[hash[0]])",
-          "\n          LogicalProject(col3=[$0], EXPR$0=[/(CAST($1):DOUBLE NOT NULL, $2)])",
-          "\n            LogicalAggregate(group=[{0}], agg#0=[$SUM0($1)], agg#1=[COUNT($2)])",
-          "\n              PinotLogicalExchange(distribution=[hash[0]])",
-          "\n                LogicalAggregate(group=[{2}], agg#0=[$SUM0($2)], agg#1=[COUNT()])",
-          "\n                  LogicalTableScan(table=[[a]])",
-          "\n"
+          "Execution Plan\nLogicalSort(sort0=[$3], dir0=[ASC])\n  PinotLogicalSortExchange(distribution=[hash], collation=[[3]], isSortOnSender=[false], isSortOnReceiver=[true])\n    LogicalProject(EXPR$0=[$1], EXPR$1=[/(CAST($2):DOUBLE NOT NULL, $3)], EXPR$2=[$4], col3=[$0])\n      LogicalWindow(window#0=[window(partition {0} aggs [SUM($0), COUNT($0), MAX($0)])])\n        PinotLogicalExchange(distribution=[hash[0]])\n          LogicalProject(col3=[$0], EXPR$0=[CAST($0):DOUBLE NOT NULL])\n            LogicalAggregate(group=[{0}])\n              PinotLogicalExchange(distribution=[hash[0]])\n                LogicalAggregate(group=[{2}])\n                  LogicalTableScan(table=[[a]])\n"
         ]
       },
       {

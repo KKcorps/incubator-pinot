@@ -284,8 +284,19 @@ public class HelixInstanceDataManager implements InstanceDataManager {
       SegmentRefreshSemaphore segmentRefreshSemaphore)
       throws Exception {
     LOGGER.info("Reloading all segments in table: {}", tableNameWithType);
+    TableDataManager tableDataManager = _tableDataManagerMap.get(tableNameWithType);
+    if (tableDataManager == null) {
+      LOGGER.warn("Failed to find table data manager for table: {}, skipping reloading segment", tableNameWithType);
+      return;
+    }
+    TableConfig tableConfig = ZKMetadataProvider.getTableConfig(_propertyStore, tableNameWithType);
+    Preconditions.checkNotNull(tableConfig);
+    Schema schema = ZKMetadataProvider.getTableSchema(_propertyStore, tableNameWithType);
+    Preconditions.checkNotNull(schema);
+    tableDataManager.preReload(tableConfig, schema);
     List<SegmentMetadata> segmentsMetadata = getAllSegmentsMetadata(tableNameWithType);
     reloadSegmentsWithMetadata(tableNameWithType, segmentsMetadata, forceDownload, segmentRefreshSemaphore);
+    tableDataManager.postReload(tableConfig, schema);
   }
 
   @Override

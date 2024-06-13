@@ -369,8 +369,13 @@
       </dependency>
       <dependency>
         <groupId>org.apache.arrow</groupId>
-        <artifactId>arrow-memory-netty</artifactId>
+        <artifactId>arrow-memory-unsafe</artifactId>
         <version>${arrow.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>tools.profiler</groupId>
+        <artifactId>async-profiler</artifactId>
+        <version>3.0</version>
       </dependency>
       <dependency>
         <groupId>org.apache.pinot</groupId>

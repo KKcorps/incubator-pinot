@@ -15,7 +15,7 @@ import org.apache.pinot.spi.data.Schema;
 public class JsonFileArrowTest {
   public static void main(String[] args)
       throws Exception {
-    String filePath = "/Users/aishik/Work/rawData/100k-864.json";
+    String filePath = "/Users/kharekartik/Documents/Workspace/Arrow/rawData/100k-864.json";
 
     Schema pinotSchema = Schema.fromString("{\n" + "  \"schemaName\": \"exampleSchema\",\n" + "  \"enableColumnBasedNullHandling\": false,\n"
         + "  \"dimensionFieldSpecs\": [\n" + "    {\n" + "      \"name\": \"low_cardinality_string\",\n"
@@ -51,7 +51,7 @@ public class JsonFileArrowTest {
         + "  ]\n" + "}\n" + "12:39\n");
 
     List<String> sortedColumns = new ArrayList<>();
-    sortedColumns.add("high_cardinality_long");
+    sortedColumns.add("low_cardinality_long");
 
     // create a new file
 //    File offsetFile = new File("/Users/aishik/Work/rawData/offsetFile");

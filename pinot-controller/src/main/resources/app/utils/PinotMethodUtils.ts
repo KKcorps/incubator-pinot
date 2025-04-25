@@ -109,6 +109,9 @@ import {
   getSchemaInfo,
   getSegmentsStatus,
   getConsumingSegmentsInfo,
+  getPauseStatus,
+  pauseConsumption,
+  resumeConsumption,
   getServerToSegmentsCount
 } from '../requests';
 import { baseApi } from './axios-config';
@@ -439,6 +442,24 @@ const getAllSchemaDetails = async (schemaList) => {
 // Expected Output: ConsumingSegmentsInfo
 const getConsumingSegmentsInfoData = (tableName) => {
   return getConsumingSegmentsInfo(tableName).then(({ data }) => data);
+};
+// Fetch pause status details for a given table
+// API: GET /tables/{tableName}/pauseStatus
+// Expected Output: PauseStatusDetails
+const getPauseStatusData = (tableName) => {
+  return getPauseStatus(tableName).then(({ data }) => data);
+};
+
+// Pause consumption operation
+// API: POST /tables/{tableName}/pauseConsumption
+const pauseConsumptionOp = (tableName, comment) => {
+  return pauseConsumption(tableName, comment).then(({ data }) => data);
+};
+
+// Resume consumption operation
+// API: POST /tables/{tableName}/resumeConsumption
+const resumeConsumptionOp = (tableName, consumeFrom, comment) => {
+  return resumeConsumption(tableName, consumeFrom, comment).then(({ data }) => data);
 };
 
 const allTableDetailsColumnHeader = [
@@ -1398,5 +1419,8 @@ export default {
   getAuthUserNameFromAccessToken,
   getAuthUserEmailFromAccessToken,
   fetchServerToSegmentsCountData,
-  getConsumingSegmentsInfoData
+  getConsumingSegmentsInfoData,
+  getPauseStatusData,
+  pauseConsumptionOp,
+  resumeConsumptionOp
 };

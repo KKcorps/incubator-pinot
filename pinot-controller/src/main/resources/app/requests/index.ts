@@ -50,7 +50,8 @@ import {
   SchemaInfo,
   SegmentStatusInfo,
   ServerToSegmentsCount,
-  ConsumingSegmentsInfo
+  ConsumingSegmentsInfo,
+  PauseStatusDetails
 } from 'Models';
 
 const headers = {
@@ -116,6 +117,18 @@ export const getSegmentsStatus = (name: string): Promise<AxiosResponse<SegmentSt
 // API: GET /tables/{tableName}/consumingSegmentsInfo
 export const getConsumingSegmentsInfo = (name: string): Promise<AxiosResponse<ConsumingSegmentsInfo>> =>
   baseApi.get(`/tables/${name}/consumingSegmentsInfo`);
+// Pause consumption endpoints
+// API: POST /tables/{tableName}/pauseConsumption?comment={comment}
+export const pauseConsumption = (name: string, comment?: string): Promise<AxiosResponse<PauseStatusDetails>> =>
+  baseApi.post(`/tables/${name}/pauseConsumption`, null, { params: { comment } });
+
+// API: POST /tables/{tableName}/resumeConsumption?consumeFrom={consumeFrom}&comment={comment}
+export const resumeConsumption = (name: string, consumeFrom?: string, comment?: string): Promise<AxiosResponse<PauseStatusDetails>> =>
+  baseApi.post(`/tables/${name}/resumeConsumption`, null, { params: { consumeFrom, comment } });
+
+// API: GET /tables/{tableName}/pauseStatus
+export const getPauseStatus = (name: string): Promise<AxiosResponse<PauseStatusDetails>> =>
+  baseApi.get(`/tables/${name}/pauseStatus`);
 
 export const getInstances = (): Promise<AxiosResponse<Instances>> =>
   baseApi.get('/instances');

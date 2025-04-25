@@ -360,4 +360,20 @@ declare module 'Models' {
   export const enum TaskType {
     RealtimeSegmentValidationManager = 'RealtimeSegmentValidationManager'
   }
+
+  export interface PauseStatusDetails {
+    pauseFlag: boolean;
+    consumingSegments: Array<string>;
+    reasonCode: PauseState.ReasonCode;
+    comment: string;
+    timestamp: string;
+  }
+
+  namespace PauseState {
+    enum ReasonCode {
+      ADMINISTRATIVE = "ADMINISTRATIVE",
+      STORAGE_QUOTA_EXCEEDED = "STORAGE_QUOTA_EXCEEDED",
+      RESOURCE_UTILIZATION_LIMIT_EXCEEDED = "RESOURCE_UTILIZATION_LIMIT_EXCEEDED"
+    }
+  }
 }

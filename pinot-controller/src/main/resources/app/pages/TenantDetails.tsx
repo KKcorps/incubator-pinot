@@ -22,7 +22,7 @@ import { makeStyles } from '@material-ui/core/styles';
 import { Box, Button, Checkbox, FormControlLabel, Grid, Switch, Tooltip, Typography, CircularProgress } from '@material-ui/core';
 import { RouteComponentProps, useHistory, useLocation } from 'react-router-dom';
 import { UnControlled as CodeMirror } from 'react-codemirror2';
-import { DISPLAY_SEGMENT_STATUS, InstanceState, TableData, TableSegmentJobs, TableType, ConsumingSegmentsInfo } from 'Models';
+import { DISPLAY_SEGMENT_STATUS, InstanceState, TableData, TableSegmentJobs, TableType, ConsumingSegmentsInfo, PauseStatusDetails } from 'Models';
 import AppLoader from '../components/AppLoader';
 import CustomizedTables from '../components/Table';
 import TableToolbar from '../components/TableToolbar';
@@ -161,6 +161,8 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
   const [showConsumingSegmentsModal, setShowConsumingSegmentsModal] = useState(false);
   const [loadingConsumingSegments, setLoadingConsumingSegments] = useState(false);
   const [consumingSegmentsInfo, setConsumingSegmentsInfo] = useState<ConsumingSegmentsInfo | null>(null);
+  // State for pause consumption status
+  const [pauseStatusData, setPauseStatusData] = useState<PauseStatusDetails | null>(null);
 
   // This is quite hacky, but it's the only way to get this to work with the dialog.
   // The useState variables are simply for the dialog box to know what to render in
@@ -198,12 +200,20 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
     setTableSummary(initialTableSummary);
     setInstanceCountData(loadingInstanceData);
     setSegmentList(loadingSegmentList);
+    // reset pause status while loading
+    setPauseStatusData(null);
 
     // load async data
     PinotMethodUtils.getTableSummaryData(tableName).then((result) => {
       setTableSummary(result);
     });
-    fetchSegmentData()
+    fetchSegmentData();
+    // load pause status
+    PinotMethodUtils.getPauseStatusData(tableName).then((data) => {
+      setPauseStatusData(data);
+    }).catch((error) => {
+      dispatch({ type: 'error', message: `Error fetching pause status: ${error}`, show: true });
+    });
   }
 
   const fetchSegmentData = async () => {
@@ -292,6 +302,29 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
   const toggleTableState = async () => {
     const result = await PinotMethodUtils.toggleTableState(tableName, tableState.enabled ? InstanceState.DISABLE : InstanceState.ENABLE, tableType.toLowerCase() as TableType);
     syncResponse(result);
+  };
+  // Handler for Pause/Resume consumption toggle
+  const handlePauseSwitchChange = (event) => {
+    setDialogDetails({
+      title: pauseStatusData?.pauseFlag ? 'Resume Consumption' : 'Pause Consumption',
+      content: `Are you sure want to ${pauseStatusData?.pauseFlag ? 'resume' : 'pause'} consumption for this table?`,
+      successCb: () => toggleConsumptionState()
+    });
+    setConfirmDialog(true);
+  };
+
+  const toggleConsumptionState = async () => {
+    try {
+      const result = pauseStatusData?.pauseFlag
+        ? await PinotMethodUtils.resumeConsumptionOp(tableName, 'lastConsumed', 'Pinot UI')
+        : await PinotMethodUtils.pauseConsumptionOp(tableName, 'Pinot UI');
+      dispatch({ type: 'success', message: result.comment, show: true });
+      setPauseStatusData(result);
+      fetchAsyncTableData();
+    } catch (error) {
+      dispatch({ type: 'error', message: error.toString(), show: true });
+    }
+    closeDialog();
   };
 
   const handleConfigChange = (value: string) => {
@@ -615,8 +648,24 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
               >
                 View Consuming Segments
               </CustomButton>
-              )}
-              <Tooltip title="Disabling will disable the table for queries, consumption and data push" arrow placement="top">
+             )}
+             {tableType.toLowerCase() === TableType.REALTIME && (
+              <Tooltip title="Pause or Resume stream consumption" arrow placement="top">
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={pauseStatusData?.pauseFlag ?? false}
+                      onChange={handlePauseSwitchChange}
+                      name="pause"
+                      color="primary"
+                      disabled={pauseStatusData === null}
+                    />
+                  }
+                  label="Pause"
+                />
+              </Tooltip>
+             )}
+             <Tooltip title="Disabling will disable the table for queries, consumption and data push" arrow placement="top">
               <FormControlLabel
                 control={
                   <Switch
@@ -664,6 +713,20 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
                   Utils.formatBytes(tableSummary.estimatedSize) :
                   <Skeleton variant="text" animation="wave" width={100} />
                 }
+              </Grid>
+            </Grid>
+            {/* Pause consumption status */}
+            <Grid item xs={4}>
+              <strong>Pause Status:</strong>{pauseStatusData !== null ? (pauseStatusData.pauseFlag ? 'Paused' : 'Active') : <Skeleton variant="text" animation="wave" width={80} />}
+            </Grid>
+            <Grid item container xs={4} wrap="nowrap" spacing={1}>
+              <Grid item>
+                <Tooltip title="Number of partitions still consuming" arrow placement="top-start">
+                  <strong>Partitions Consuming:</strong>
+                </Tooltip>
+              </Grid>
+              <Grid item>
+                {pauseStatusData !== null ? pauseStatusData.consumingSegments.length : <Skeleton variant="text" animation="wave" width={30} />}
               </Grid>
             </Grid>
           </Grid>

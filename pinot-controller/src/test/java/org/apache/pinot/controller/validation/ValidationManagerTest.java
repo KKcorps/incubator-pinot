@@ -117,7 +117,7 @@ public class ValidationManagerTest {
     segmentsZKMetadata.add(SegmentMetadataMockUtils.mockSegmentZKMetadata(segmentName5, 10));
     segmentsZKMetadata.add(SegmentMetadataMockUtils.mockSegmentZKMetadata(segmentName6, 5));
     segmentsZKMetadata.add(SegmentMetadataMockUtils.mockSegmentZKMetadata(TEST_SEGMENT_NAME, 15));
-    assertEquals(RealtimeSegmentValidationManager.computeTotalDocumentCount(segmentsZKMetadata), 30);
+    assertEquals(RealtimeSegmentValidator.computeTotalDocumentCount(segmentsZKMetadata), 30);
   }
 
   @Test

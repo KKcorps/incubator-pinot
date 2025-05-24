@@ -115,6 +115,7 @@ import org.apache.pinot.controller.validation.BrokerResourceValidationManager;
 import org.apache.pinot.controller.validation.DiskUtilizationChecker;
 import org.apache.pinot.controller.validation.OfflineSegmentIntervalChecker;
 import org.apache.pinot.controller.validation.RealtimeSegmentValidationManager;
+import org.apache.pinot.controller.validation.RealtimeConsumptionManager;
 import org.apache.pinot.controller.validation.ResourceUtilizationChecker;
 import org.apache.pinot.controller.validation.ResourceUtilizationManager;
 import org.apache.pinot.controller.validation.StorageQuotaChecker;
@@ -185,6 +186,7 @@ public abstract class BaseControllerStarter implements ServiceStartable {
   // Can only be constructed after resource manager getting started
   protected OfflineSegmentIntervalChecker _offlineSegmentIntervalChecker;
   protected RealtimeSegmentValidationManager _realtimeSegmentValidationManager;
+  protected RealtimeConsumptionManager _realtimeConsumptionManager;
   protected BrokerResourceValidationManager _brokerResourceValidationManager;
   protected SegmentRelocator _segmentRelocator;
   protected RetentionManager _retentionManager;
@@ -371,6 +373,10 @@ public abstract class BaseControllerStarter implements ServiceStartable {
 
   public RealtimeSegmentValidationManager getRealtimeSegmentValidationManager() {
     return _realtimeSegmentValidationManager;
+  }
+
+  public RealtimeConsumptionManager getRealtimeConsumptionManager() {
+    return _realtimeConsumptionManager;
   }
 
   public BrokerResourceValidationManager getBrokerResourceValidationManager() {
@@ -847,9 +853,11 @@ public abstract class BaseControllerStarter implements ServiceStartable {
     periodicTasks.add(_offlineSegmentIntervalChecker);
     _realtimeSegmentValidationManager =
         new RealtimeSegmentValidationManager(_config, _helixResourceManager, _leadControllerManager,
-            _pinotLLCRealtimeSegmentManager, _validationMetrics, _controllerMetrics, _storageQuotaChecker,
-            _resourceUtilizationManager);
+            _pinotLLCRealtimeSegmentManager, _validationMetrics, _controllerMetrics);
     periodicTasks.add(_realtimeSegmentValidationManager);
+    _realtimeConsumptionManager = new RealtimeConsumptionManager(_config, _helixResourceManager, _leadControllerManager,
+        _pinotLLCRealtimeSegmentManager, _controllerMetrics, _storageQuotaChecker, _resourceUtilizationManager);
+    periodicTasks.add(_realtimeConsumptionManager);
     _brokerResourceValidationManager =
         new BrokerResourceValidationManager(_config, _helixResourceManager, _leadControllerManager, _controllerMetrics);
     periodicTasks.add(_brokerResourceValidationManager);

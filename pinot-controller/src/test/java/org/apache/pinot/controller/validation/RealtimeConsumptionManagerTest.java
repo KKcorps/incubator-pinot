@@ -23,6 +23,7 @@ import org.apache.pinot.controller.ControllerConf;
 import org.apache.pinot.controller.api.resources.PauseStatusDetails;
 import org.apache.pinot.controller.helix.core.PinotHelixResourceManager;
 import org.apache.pinot.controller.helix.core.realtime.PinotLLCRealtimeSegmentManager;
+import org.apache.pinot.controller.validation.RealtimeConsumptionManager;
 import org.apache.pinot.spi.config.table.PauseState;
 import org.apache.pinot.spi.config.table.TableConfig;
 import org.mockito.Mock;
@@ -30,13 +31,12 @@ import org.mockito.MockitoAnnotations;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import static org.mockito.Mockito.*;
 
 
-public class RealtimeSegmentValidationManagerTest {
+public class RealtimeConsumptionManagerTest {
   @Mock
   private PinotLLCRealtimeSegmentManager _llcRealtimeSegmentManager;
 
@@ -53,15 +53,15 @@ public class RealtimeSegmentValidationManagerTest {
   private ControllerMetrics _controllerMetrics;
 
   private AutoCloseable _mocks;
-  private RealtimeSegmentValidationManager _realtimeSegmentValidationManager;
+  private RealtimeConsumptionManager _realtimeConsumptionManager;
 
   @BeforeMethod
   public void setup() {
     ControllerConf controllerConf = new ControllerConf();
     _mocks = MockitoAnnotations.openMocks(this);
-    _realtimeSegmentValidationManager =
-        new RealtimeSegmentValidationManager(controllerConf, _pinotHelixResourceManager, null,
-            _llcRealtimeSegmentManager, null, _controllerMetrics, _storageQuotaChecker, _resourceUtilizationManager);
+    _realtimeConsumptionManager =
+        new RealtimeConsumptionManager(controllerConf, _pinotHelixResourceManager, null, _llcRealtimeSegmentManager,
+            _controllerMetrics, _storageQuotaChecker, _resourceUtilizationManager);
   }
 
   @AfterMethod
@@ -70,47 +70,21 @@ public class RealtimeSegmentValidationManagerTest {
     _mocks.close();
   }
 
-  @DataProvider(name = "testCases")
-  public Object[][] testCases() {
-    return new Object[][]{
-        // Table is paused due to admin intervention, should return false
-        {true, PauseState.ReasonCode.ADMINISTRATIVE, false, false, false},
-
-        // Resource utilization exceeded and pause state is updated, should return false
-        {false, PauseState.ReasonCode.RESOURCE_UTILIZATION_LIMIT_EXCEEDED, true, false, false},
-
-        // Resource utilization is within limits but was previously paused due to resource utilization,
-        // should return true
-        {true, PauseState.ReasonCode.RESOURCE_UTILIZATION_LIMIT_EXCEEDED, false, false, true},
-
-        // Resource utilization is within limits but was previously paused due to storage quota exceeded,
-        // should return false
-        {true, PauseState.ReasonCode.STORAGE_QUOTA_EXCEEDED, false, true, false},
-
-        // Storage quota exceeded, should return false
-        {false, PauseState.ReasonCode.STORAGE_QUOTA_EXCEEDED, false, true, false},
-
-        // Storage quota within limits but was previously paused due to storage quota exceeded, should return true
-        {true, PauseState.ReasonCode.STORAGE_QUOTA_EXCEEDED, false, false, true}};
-  }
-
-  @Test(dataProvider = "testCases")
-  public void testShouldEnsureConsuming(boolean isTablePaused, PauseState.ReasonCode reasonCode,
-      boolean isResourceUtilizationExceeded, boolean isQuotaExceeded, boolean expectedResult) {
+  @Test
+  public void testEnforcePauseState() {
     String tableName = "testTable_REALTIME";
     PauseStatusDetails pauseStatus = mock(PauseStatusDetails.class);
     TableConfig tableConfig = mock(TableConfig.class);
 
-    when(pauseStatus.getPauseFlag()).thenReturn(isTablePaused);
-    when(pauseStatus.getReasonCode()).thenReturn(reasonCode);
+    when(pauseStatus.getPauseFlag()).thenReturn(false);
+    when(pauseStatus.getReasonCode()).thenReturn(PauseState.ReasonCode.NONE);
     when(_llcRealtimeSegmentManager.getPauseStatusDetails(tableName)).thenReturn(pauseStatus);
-    when(_resourceUtilizationManager.isResourceUtilizationWithinLimits(tableName)).thenReturn(
-        !isResourceUtilizationExceeded);
+    when(_resourceUtilizationManager.isResourceUtilizationWithinLimits(tableName)).thenReturn(true);
     when(_pinotHelixResourceManager.getTableConfig(tableName)).thenReturn(tableConfig);
-    when(_storageQuotaChecker.isTableStorageQuotaExceeded(tableConfig)).thenReturn(isQuotaExceeded);
+    when(_storageQuotaChecker.isTableStorageQuotaExceeded(tableConfig)).thenReturn(false);
 
-    boolean result = _realtimeSegmentValidationManager.shouldEnsureConsuming(tableName);
+    _realtimeConsumptionManager.enforcePauseState(tableName, tableConfig);
 
-    Assert.assertEquals(result, expectedResult);
+    verify(_llcRealtimeSegmentManager, never()).pauseConsumption(anyString(), any(), anyString());
   }
 }

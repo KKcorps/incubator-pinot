@@ -36,6 +36,7 @@ import org.apache.pinot.spi.stream.PartitionGroupConsumptionStatus;
 import org.apache.pinot.spi.stream.PartitionGroupMetadata;
 import org.apache.pinot.spi.stream.PartitionLagState;
 import org.apache.pinot.spi.stream.RowMetadata;
+import org.apache.pinot.plugin.stream.kinesis.KinesisStreamMessageMetadata;
 import org.apache.pinot.spi.stream.StreamConfig;
 import org.apache.pinot.spi.stream.StreamConsumerFactory;
 import org.apache.pinot.spi.stream.StreamConsumerFactoryProvider;
@@ -264,13 +265,22 @@ public class KinesisStreamMetadataProvider implements StreamMetadataProvider {
       ConsumerPartitionState partitionState = entry.getValue();
       // Compute record-availability
       String recordAvailabilityLag = "UNKNOWN";
+      String iteratorAge = "UNKNOWN";
       RowMetadata lastProcessedMessageMetadata = partitionState.getLastProcessedRowMetadata();
       if (lastProcessedMessageMetadata != null && partitionState.getLastProcessedTimeMs() > 0) {
         long availabilityLag =
             partitionState.getLastProcessedTimeMs() - lastProcessedMessageMetadata.getRecordIngestionTimeMs();
         recordAvailabilityLag = String.valueOf(availabilityLag);
+        Map<String, String> metadata = lastProcessedMessageMetadata.getRecordMetadata();
+        if (metadata != null) {
+          String millisBehindLatest = metadata.get(KinesisStreamMessageMetadata.ITERATOR_AGE_MS_KEY);
+          if (millisBehindLatest != null) {
+            iteratorAge = millisBehindLatest;
+          }
+        }
       }
-      perPartitionLag.put(entry.getKey(), new KinesisConsumerPartitionLag(recordAvailabilityLag));
+      perPartitionLag.put(entry.getKey(),
+          new KinesisConsumerPartitionLag(recordAvailabilityLag, iteratorAge));
     }
     return perPartitionLag;
   }

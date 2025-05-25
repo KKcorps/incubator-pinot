@@ -23,9 +23,16 @@ import org.apache.pinot.spi.stream.PartitionLagState;
 
 public class KinesisConsumerPartitionLag extends PartitionLagState {
   private final String _availabilityLagMs;
+  private final String _iteratorAgeMs;
 
-  public KinesisConsumerPartitionLag(String availabilityLagMs) {
+  public KinesisConsumerPartitionLag(String availabilityLagMs, String iteratorAgeMs) {
     _availabilityLagMs = availabilityLagMs;
+    _iteratorAgeMs = iteratorAgeMs;
+  }
+
+  @Override
+  public String getRecordsLag() {
+    return _iteratorAgeMs;
   }
 
   @Override

@@ -108,12 +108,15 @@ public class KinesisConsumer extends KinesisConnectionHandler implements Partiti
     GetRecordsRequest getRecordRequest =
         GetRecordsRequest.builder().shardIterator(shardIterator).limit(_config.getNumMaxRecordsToFetch()).build();
     GetRecordsResponse getRecordsResponse = _kinesisClient.getRecords(getRecordRequest);
+    long iteratorAgeMs = getRecordsResponse.millisBehindLatest();
 
     List<Record> records = getRecordsResponse.records();
     List<BytesStreamMessage> messages;
     KinesisPartitionGroupOffset offsetOfNextBatch;
     if (!records.isEmpty()) {
-      messages = records.stream().map(record -> extractStreamMessage(record, shardId)).collect(Collectors.toList());
+      messages = records.stream()
+          .map(record -> extractStreamMessage(record, shardId, iteratorAgeMs))
+          .collect(Collectors.toList());
       StreamMessageMetadata lastMessageMetadata = messages.get(messages.size() - 1).getMetadata();
       assert lastMessageMetadata != null;
       offsetOfNextBatch = (KinesisPartitionGroupOffset) lastMessageMetadata.getNextOffset();
@@ -154,7 +157,7 @@ public class KinesisConsumer extends KinesisConnectionHandler implements Partiti
     }
   }
 
-  private BytesStreamMessage extractStreamMessage(Record record, String shardId) {
+  private BytesStreamMessage extractStreamMessage(Record record, String shardId, long iteratorAgeMs) {
     byte[] key = record.partitionKey().getBytes(StandardCharsets.UTF_8);
     byte[] value = record.data().asByteArray();
     long timestamp = record.approximateArrivalTimestamp().toEpochMilli();
@@ -165,8 +168,10 @@ public class KinesisConsumer extends KinesisConnectionHandler implements Partiti
         new StreamMessageMetadata.Builder().setRecordIngestionTimeMs(timestamp).setSerializedValueSize(value.length)
             .setOffset(offset, offset);
     if (_config.isPopulateMetadata()) {
-      builder.setMetadata(Map.of(KinesisStreamMessageMetadata.APPRX_ARRIVAL_TIMESTAMP_KEY, String.valueOf(timestamp),
-          KinesisStreamMessageMetadata.SEQUENCE_NUMBER_KEY, sequenceNumber));
+      builder.setMetadata(Map.of(
+          KinesisStreamMessageMetadata.APPRX_ARRIVAL_TIMESTAMP_KEY, String.valueOf(timestamp),
+          KinesisStreamMessageMetadata.SEQUENCE_NUMBER_KEY, sequenceNumber,
+          KinesisStreamMessageMetadata.ITERATOR_AGE_MS_KEY, String.valueOf(iteratorAgeMs)));
     }
     StreamMessageMetadata metadata = builder.build();
     return new BytesStreamMessage(key, value, metadata);

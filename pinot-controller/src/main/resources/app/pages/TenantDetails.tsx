@@ -431,6 +431,21 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
     }
   };
 
+  const handleDuplicateTable = async () => {
+    const newName = window.prompt('New table name', tableName);
+    if (!newName) {
+      return;
+    }
+
+    const result = await PinotMethodUtils.duplicateTableOp(tableName, newName);
+    if ((result as any).status) {
+      dispatch({ type: 'success', message: (result as any).status, show: true });
+      fetchTableData();
+    } else {
+      dispatch({ type: 'error', message: (result as any).error, show: true });
+    }
+  };
+
   const handleReloadSegments = () => {
     setDialogDetails({
       title: 'Reload all segments',
@@ -657,6 +672,13 @@ const TenantPageDetails = ({ match }: RouteComponentProps<Props>) => {
                 enableTooltip={true}
               >
                 Delete Table
+              </CustomButton>
+              <CustomButton
+                onClick={handleDuplicateTable}
+                tooltipTitle="Duplicate Table"
+                enableTooltip={true}
+              >
+                Duplicate Table
               </CustomButton>
               <CustomButton
                 onClick={()=>{

@@ -28,7 +28,11 @@ import java.util.stream.Collectors;
 import org.apache.helix.model.IdealState;
 import org.apache.helix.zookeeper.datamodel.ZNRecord;
 import org.apache.pinot.common.utils.LLCSegmentName;
+import org.apache.pinot.controller.api.resources.DeleteSegmentsFromSequenceNumResponse;
 import org.apache.pinot.controller.helix.core.PinotHelixResourceManager;
+import org.apache.pinot.controller.helix.core.realtime.PinotLLCRealtimeSegmentManager;
+import org.apache.pinot.spi.config.table.TableConfig;
+import org.apache.pinot.controller.api.resources.PauseStatusDetails;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -145,6 +149,43 @@ public class PinotSegmentRestletResourceTest {
     assertEquals(2, partitionIdToLatestSegment.size());
     assertEquals(9, partitionIdToLatestSegment.get(0).getSequenceNumber());
     assertEquals(9, partitionIdToLatestSegment.get(1).getSequenceNumber());
+  }
+
+  @Test
+  public void testDeleteSegmentsFromSequenceNumDryRun() {
+    String tableName = "testTable_REALTIME";
+    long currentTime = System.currentTimeMillis();
+
+    // All segments present in ideal state for one partition
+    List<String> allSegments = getSegmentForPartition(tableName, 0, 0, 5, currentTime);
+    Map<String, Map<String, String>> mapFields = new HashMap<>();
+    for (String segment : allSegments) {
+      mapFields.put(segment, null);
+    }
+
+    IdealState idealState = mock(IdealState.class);
+    ZNRecord znRecord = mock(ZNRecord.class);
+    when(_pinotHelixResourceManager.getTableIdealState(tableName)).thenReturn(idealState);
+    when(idealState.getRecord()).thenReturn(znRecord);
+    when(znRecord.getMapFields()).thenReturn(mapFields);
+
+    TableConfig tableConfig = mock(TableConfig.class);
+    when(_pinotHelixResourceManager.getTableConfig(tableName)).thenReturn(tableConfig);
+
+    PinotLLCRealtimeSegmentManager realtimeSegmentManager = mock(PinotLLCRealtimeSegmentManager.class);
+    PauseStatusDetails pauseStatus = mock(PauseStatusDetails.class);
+    when(_pinotHelixResourceManager.getRealtimeSegmentManager()).thenReturn(realtimeSegmentManager);
+    when(realtimeSegmentManager.getPauseStatusDetails(tableName)).thenReturn(pauseStatus);
+    when(pauseStatus.getPauseFlag()).thenReturn(true);
+
+    // Delete from sequence number 1 onwards
+    List<String> input = List.of(allSegments.get(1));
+
+    DeleteSegmentsFromSequenceNumResponse response = _pinotSegmentRestletResource
+        .deleteSegmentsFromSequenceNum(tableName, input, false, true, null);
+
+    assertTrue(response.isDryRun());
+    assertEquals(response.getSegments(), allSegments.subList(1, allSegments.size()));
   }
 
   @Test

@@ -101,6 +101,7 @@ import org.apache.pinot.spi.data.Schema;
 import org.apache.pinot.spi.utils.CommonConstants;
 import org.apache.pinot.spi.utils.JsonUtils;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
+import org.apache.pinot.controller.api.resources.DeleteSegmentsFromSequenceNumResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1202,8 +1203,9 @@ public class PinotSegmentRestletResource {
           + "When force flag is true, it bypasses checks for pauseless being enabled and table being paused. "
           + "The retention period controls how long deleted segments are retained before permanent removal. "
           + "It follows this precedence: input parameter → table config → cluster setting → 7d default. "
-          + "Use 0d or -1d for immediate deletion without retention.")
-  public SuccessResponse deleteSegmentsFromSequenceNum(
+          + "Use 0d or -1d for immediate deletion without retention. "
+          + "Use dryRun=true to only return the segments that would be deleted without deleting them.")
+  public DeleteSegmentsFromSequenceNumResponse deleteSegmentsFromSequenceNum(
       @ApiParam(value = "Name of the table with type", required = true) @PathParam("tableNameWithType")
       String tableNameWithType,
       @ApiParam(value = "List of segment names. For each segment, all segments with higher sequence IDs in the same "
@@ -1211,6 +1213,8 @@ public class PinotSegmentRestletResource {
       @QueryParam("segments") List<String> segments,
       @ApiParam(value = "Force flag to bypass checks for pauseless being enabled and table being paused",
           defaultValue = "false") @QueryParam("force") boolean force,
+      @ApiParam(value = "Run in dry-run mode and return segments to be deleted without deleting them",
+          defaultValue = "false") @QueryParam("dryRun") boolean dryRun,
       @Context HttpHeaders headers
   ) {
 
@@ -1246,15 +1250,20 @@ public class PinotSegmentRestletResource {
     Map<Integer, Set<String>> partitionIdToSegmentsToDeleteMap =
         getPartitionIdToSegmentsToDeleteMap(partitionToOldestSegment, idealStateSegmentsSet,
             partitionIdToLatestSegment);
+
+    List<String> segmentsToDelete = new ArrayList<>();
     for (Integer partitionID : partitionToOldestSegment.keySet()) {
       Set<String> segmentToDeleteForPartition = partitionIdToSegmentsToDeleteMap.get(partitionID);
       LOGGER.info("Deleting : {} segments from segment: {} to segment: {} for partition: {}",
           segmentToDeleteForPartition.size(), partitionToOldestSegment.get(partitionID),
           partitionIdToLatestSegment.get(partitionID), partitionID);
-      deleteSegmentsInternal(tableNameWithType, new ArrayList<>(segmentToDeleteForPartition), null);
+      segmentsToDelete.addAll(segmentToDeleteForPartition);
+      if (!dryRun) {
+        deleteSegmentsInternal(tableNameWithType, new ArrayList<>(segmentToDeleteForPartition), null);
+      }
     }
 
-    return new SuccessResponse("Successfully deleted segments for table: " + tableNameWithType);
+    return new DeleteSegmentsFromSequenceNumResponse(segmentsToDelete, dryRun);
   }
 
   /**

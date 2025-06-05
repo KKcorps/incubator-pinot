@@ -115,7 +115,6 @@ import org.apache.pinot.spi.utils.retry.AttemptsExceededException;
 import org.apache.pinot.spi.utils.retry.RetriableOperationException;
 import org.apache.pinot.spi.utils.retry.RetryPolicies;
 import org.apache.pinot.spi.utils.retry.RetryPolicy;
-import com.google.common.util.concurrent.RateLimiter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
@@ -332,7 +331,6 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
   private final SegmentCommitterFactory _segmentCommitterFactory;
   private final ConsumptionRateLimiter _partitionRateLimiter;
   private final ConsumptionRateLimiter _serverRateLimiter;
-  private final RateLimiter _transformErrorLogRateLimiter = RateLimiter.create(1.0);
 
   private final StreamPartitionMsgOffset _latestStreamOffsetAtStartupTime;
   private final CompletionMode _segmentCompletionMode;
@@ -653,9 +651,7 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
           reusedResult.getTransformedRows().clear();
           String errorMessage = "Caught exception while transforming the record at offset: " + offset + " , row: "
               + decodedRow.getResult();
-          if (_transformErrorLogRateLimiter.tryAcquire()) {
-            _segmentLogger.error(errorMessage, e);
-          }
+          _segmentLogger.error(errorMessage, e);
           _realtimeTableDataManager.addSegmentError(_segmentNameStr, new SegmentErrorInfo(now(), errorMessage, e));
         }
         if (reusedResult.getSkippedRowCount() > 0) {

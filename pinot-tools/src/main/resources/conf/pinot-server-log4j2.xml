@@ -52,11 +52,15 @@
     <Logger name="org.apache.pinot.server.starter.helix.HelixServerStarter" level="info" additivity="false">
       <AppenderRef ref="console"/>
     </Logger>
-    <!-- Throttle transform error logs -->
+    <!-- Throttle only transform error logs -->
     <Logger name="org.apache.pinot.core.data.manager.realtime.RealtimeSegmentDataManager" level="info" additivity="false">
       <AppenderRef ref="console" level="warn"/>
       <AppenderRef ref="serverLog">
-        <BurstFilter level="error" rate="1" maxBurst="1"/>
+        <Filters>
+          <!-- Apply throttling only when the message matches the transform error prefix -->
+          <RegexFilter regex="^Caught exception while transforming the record at offset.*" onMatch="NEUTRAL" onMismatch="ACCEPT"/>
+          <BurstFilter level="error" rate="1" maxBurst="1"/>
+        </Filters>
       </AppenderRef>
     </Logger>
     <AsyncLogger name="org.reflections" level="error" additivity="false"/>

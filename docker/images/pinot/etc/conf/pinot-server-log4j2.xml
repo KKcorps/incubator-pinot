@@ -80,8 +80,8 @@
       <AppenderRef ref="console" level="${env:LOG4J_CONSOLE_LEVEL:-warn}"/>
       <AppenderRef ref="serverLog">
         <Filters>
-          <!-- Apply throttling only when the message matches the transform error prefix -->
-          <RegexFilter regex="^Caught exception while transforming the record at offset.*" onMatch="NEUTRAL" onMismatch="ACCEPT"/>
+          <!-- Apply throttling only when the message matches common row error prefixes -->
+          <RegexFilter regex="^Caught exception while (transforming|indexing) the record at offset.*" onMatch="NEUTRAL" onMismatch="ACCEPT"/>
           <BurstFilter level="error" rate="1" maxBurst="1"/>
         </Filters>
       </AppenderRef>

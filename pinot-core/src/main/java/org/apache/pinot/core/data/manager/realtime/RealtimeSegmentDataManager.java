@@ -343,7 +343,8 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
    */
   private void logSegmentEvent(String event) {
     long durationMs = now() - _startTimeMs;
-    _segmentLogger.info("Segment {} {}: rowsConsumed={}, rowsWithErrors={}, duration={}ms, startOffset={}, endOffset={}",
+    _segmentLogger.info(
+        "Segment '{}' {} after consuming {} rows ({} with errors) in {} ms covering offsets {} to {}",
         _segmentNameStr, event, _numRowsConsumed, _numRowsErrored, durationMs, _startOffset, _currentOffset);
   }
 

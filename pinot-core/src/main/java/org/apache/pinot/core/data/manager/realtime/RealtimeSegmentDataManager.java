@@ -338,6 +338,16 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
   private final boolean _trackFilteredMessageOffsets;
   private final ParallelSegmentConsumptionPolicy _parallelSegmentConsumptionPolicy;
 
+  /**
+   * Logs a segment lifecycle event with useful metrics.
+   */
+  private void logSegmentEvent(String event) {
+    long durationMs = now() - _startTimeMs;
+    _segmentLogger.info(
+        "Segment '{}' {} after consuming {} rows ({} with errors) in {} ms covering offsets {} to {}",
+        _segmentNameStr, event, _numRowsConsumed, _numRowsErrored, durationMs, _startOffset, _currentOffset);
+  }
+
   // TODO each time this method is called, we print reason for stop. Good to print only once.
   private boolean endCriteriaReached() {
     Preconditions.checkState(_state.shouldConsume(), "Incorrect state %s", _state);
@@ -757,6 +767,7 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
         _consumeStartTime = now();
         _segmentLogger.info("Starting consumption on segment: {}, maxRowCount: {}, maxEndTime: {}.", _llcSegmentName,
             _segmentMaxRowCount, new DateTime(_consumeEndTime, DateTimeZone.UTC));
+        logSegmentEvent("start");
 
         // TODO:
         //   When reaching here, the current consuming segment has already acquired the consumer semaphore, but there is
@@ -843,10 +854,12 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
             case DISCARD:
               // Keep this in memory, but wait for the online transition, and download when it comes in.
               _state = State.DISCARDED;
+              logSegmentEvent("discard");
               break;
             case KEEP: {
               if (_segmentCompletionMode == CompletionMode.DOWNLOAD) {
                 _state = State.DISCARDED;
+                logSegmentEvent("discard");
                 break;
               }
               _state = State.RETAINING;
@@ -862,7 +875,8 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
                   // Could not build segment for some reason. We can only download it.
                   _state = State.ERROR;
                   _segmentLogger.error("Could not build segment for {}", _segmentNameStr);
-                }
+                  logSegmentEvent("error");
+                  }
               } finally {
                 segmentLock.unlock();
               }
@@ -902,6 +916,7 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
                   // We could not build the segment. Go into error state.
                   _state = State.ERROR;
                   _segmentLogger.error("Could not build segment for {}", _segmentNameStr);
+                  logSegmentEvent("error");
                   if (_segmentBuildFailedWithDeterministicError
                       && _tableConfig.getIngestionConfig().isRetryOnSegmentBuildPrecheckFailure()) {
                     _segmentLogger.error(
@@ -914,6 +929,7 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
                 }
                 if (commitSegment(response.getControllerVipUrl())) {
                   _state = State.COMMITTED;
+                  logSegmentEvent("commit");
                   break;
                 }
               } finally {
@@ -948,6 +964,7 @@ public class RealtimeSegmentDataManager extends SegmentDataManager {
           _state = State.ERROR;
           _realtimeTableDataManager.addSegmentError(_segmentNameStr, new SegmentErrorInfo(now(), errorMessage, e));
           _serverMetrics.setValueOfTableGauge(_clientId, ServerGauge.LLC_PARTITION_CONSUMING, 0);
+          logSegmentEvent("error");
           postStopConsumedMsg(e.getClass().getName());
           return;
         }

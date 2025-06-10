@@ -70,6 +70,10 @@ public enum ControllerMeter implements AbstractMetrics.Meter {
   IDEAL_STATE_UPDATE_RETRY("IdealStateUpdateRetry", false),
   IDEAL_STATE_UPDATE_SUCCESS("IdealStateUpdateSuccess", false),
   SEGMENT_SIZE_AUTO_REDUCTION("SegmentSizeAutoReduction", false),
+  /** Metric counting successful table config updates */
+  TABLE_CONFIG_UPDATED("tableConfigUpdated", true),
+  /** Metric counting successful schema updates */
+  SCHEMA_UPDATED("schemaUpdated", true),
   // Total Bytes read from deep store
   DEEP_STORE_READ_BYTES_COMPLETED("deepStoreReadBytesCompleted", true),
   // Total Bytes written to deep store

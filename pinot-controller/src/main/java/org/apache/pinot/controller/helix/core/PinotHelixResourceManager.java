@@ -118,6 +118,7 @@ import org.apache.pinot.common.metadata.instance.InstanceZKMetadata;
 import org.apache.pinot.common.metadata.segment.SegmentZKMetadata;
 import org.apache.pinot.common.metadata.segment.SegmentZKMetadataUtils;
 import org.apache.pinot.common.metrics.ControllerMetrics;
+import org.apache.pinot.common.metrics.ControllerMeter;
 import org.apache.pinot.common.minion.MinionTaskMetadataUtils;
 import org.apache.pinot.common.restlet.resources.EndReplaceSegmentsRequest;
 import org.apache.pinot.common.restlet.resources.RevertReplaceSegmentsRequest;
@@ -1618,6 +1619,9 @@ public class PinotHelixResourceManager {
       }
     }
     ZKMetadataProvider.setSchema(_propertyStore, schema);
+    if (_controllerMetrics != null) {
+      _controllerMetrics.addMeteredGlobalValue(ControllerMeter.SCHEMA_UPDATED, 1L);
+    }
     LOGGER.info("Updated schema: {}", schemaName);
   }
 
@@ -2220,6 +2224,9 @@ public class PinotHelixResourceManager {
 
     // Send update query quota message if quota is specified
     sendTableConfigRefreshMessage(tableNameWithType);
+    if (_controllerMetrics != null) {
+      _controllerMetrics.addMeteredGlobalValue(ControllerMeter.TABLE_CONFIG_UPDATED, 1L);
+    }
   }
 
   public void deleteUser(String username) {

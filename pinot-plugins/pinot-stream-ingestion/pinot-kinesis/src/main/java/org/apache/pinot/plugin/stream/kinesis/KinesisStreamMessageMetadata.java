@@ -28,6 +28,7 @@ import org.apache.pinot.spi.stream.StreamMessageMetadata;
 public class KinesisStreamMessageMetadata extends StreamMessageMetadata {
   public static final String APPRX_ARRIVAL_TIMESTAMP_KEY = "apprxArrivalTimestamp";
   public static final String SEQUENCE_NUMBER_KEY = "sequenceNumber";
+  public static final String ITERATOR_AGE_MS_KEY = "iteratorAgeMs";
 
   @Deprecated
   public KinesisStreamMessageMetadata(long recordIngestionTimeMs, @Nullable GenericRow headers) {

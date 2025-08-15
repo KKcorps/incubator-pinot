@@ -31,7 +31,6 @@ import io.swagger.annotations.Authorization;
 import io.swagger.annotations.SecurityDefinition;
 import io.swagger.annotations.SwaggerDefinition;
 import java.io.File;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -60,6 +59,8 @@ import org.apache.pinot.segment.local.segment.index.loader.IndexLoadingConfig;
 import org.apache.pinot.server.realtime.ServerSegmentCompletionProtocolHandler;
 import org.apache.pinot.server.starter.ServerInstance;
 import org.apache.pinot.spi.utils.builder.TableNameBuilder;
+import org.apache.pinot.spi.env.PinotConfiguration;
+import org.apache.pinot.spi.utils.CommonConstants.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,23 +81,36 @@ import static org.apache.pinot.spi.utils.CommonConstants.SWAGGER_AUTHORIZATION_K
 public class ReingestionResource {
   private static final Logger LOGGER = LoggerFactory.getLogger(ReingestionResource.class);
 
-  // TODO: Make them configurable
-  private static final int MAX_PARALLEL_REINGESTIONS = Math.max(Runtime.getRuntime().availableProcessors() / 2, 1);
-  public static final long CONSUMPTION_END_TIMEOUT_MS = Duration.ofMinutes(30).toMillis();
-  public static final long CHECK_INTERVAL_MS = Duration.ofSeconds(5).toMillis();
+  // Configuration driven parameters for re-ingestion
+  private int _maxParallelReingestions = Server.DEFAULT_MAX_PARALLEL_REINGESTIONS;
+  private long _consumptionEndTimeoutMs = Server.DEFAULT_REINGESTION_CONSUMPTION_END_TIMEOUT_MS;
+  private long _checkIntervalMs = Server.DEFAULT_REINGESTION_CHECK_INTERVAL_MS;
 
   // Tracks if a particular segment is currently being re-ingested
   private final ConcurrentHashMap<String, AtomicBoolean> _reingestingSegments = new ConcurrentHashMap<>();
 
   // Executor for asynchronous re-ingestion
-  private final ExecutorService _reingestionExecutor = Executors.newFixedThreadPool(MAX_PARALLEL_REINGESTIONS,
-      new ThreadFactoryBuilder().setNameFormat("reingestion-worker-%d").build());
+  private ExecutorService _reingestionExecutor;
 
   // Keep track of jobs by jobId => job info
   private final ConcurrentHashMap<String, ReingestionJob> _runningJobs = new ConcurrentHashMap<>();
 
   @Inject
   private ServerInstance _serverInstance;
+
+  /** Instance config will be read lazily when the first request arrives. */
+  private synchronized void initIfNeeded(PinotConfiguration instanceConfig) {
+    if (_reingestionExecutor == null) {
+      _maxParallelReingestions = instanceConfig.getProperty(Server.CONFIG_OF_MAX_PARALLEL_REINGESTIONS,
+          Server.DEFAULT_MAX_PARALLEL_REINGESTIONS);
+      _consumptionEndTimeoutMs = instanceConfig.getProperty(Server.CONFIG_OF_REINGESTION_CONSUMPTION_END_TIMEOUT_MS,
+          Server.DEFAULT_REINGESTION_CONSUMPTION_END_TIMEOUT_MS);
+      _checkIntervalMs = instanceConfig.getProperty(Server.CONFIG_OF_REINGESTION_CHECK_INTERVAL_MS,
+          Server.DEFAULT_REINGESTION_CHECK_INTERVAL_MS);
+      _reingestionExecutor = Executors.newFixedThreadPool(_maxParallelReingestions,
+          new ThreadFactoryBuilder().setNameFormat("reingestion-worker-%d").build());
+    }
+  }
 
   /**
    * Simple data class to hold job details.
@@ -166,6 +180,9 @@ public class ReingestionResource {
           Response.Status.NOT_FOUND);
     }
 
+    // Initialize executor and timeouts from the instance config if not already done
+    initIfNeeded(tableDataManager.getInstanceDataManagerConfig().getConfig());
+
     SegmentZKMetadata segmentZKMetadata;
     try {
       segmentZKMetadata = tableDataManager.fetchZKMetadata(segmentName);
@@ -233,7 +250,7 @@ public class ReingestionResource {
     try (StatelessRealtimeSegmentWriter writer = new StatelessRealtimeSegmentWriter(segmentZKMetadata,
         indexLoadingConfig, segmentBuildSemaphore)) {
       writer.startConsumption();
-      waitForCondition((Void) -> writer.isDoneConsuming(), CHECK_INTERVAL_MS, CONSUMPTION_END_TIMEOUT_MS, 0);
+      waitForCondition((Void) -> writer.isDoneConsuming(), _checkIntervalMs, _consumptionEndTimeoutMs, 0);
       writer.stopConsumption();
 
       if (!writer.isSuccess()) {

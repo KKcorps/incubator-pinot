@@ -19,6 +19,7 @@
 package org.apache.pinot.controller.api.resources;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.HashBiMap;
 import io.swagger.annotations.Api;
@@ -69,6 +70,7 @@ import org.apache.helix.task.TaskPartitionState;
 import org.apache.helix.task.TaskState;
 import org.apache.pinot.common.exception.TableNotFoundException;
 import org.apache.pinot.common.minion.BaseTaskGeneratorInfo;
+import org.apache.pinot.common.minion.MinionTaskDryRunResponse;
 import org.apache.pinot.common.minion.TaskManagerStatusCache;
 import org.apache.pinot.common.utils.DatabaseUtils;
 import org.apache.pinot.controller.ControllerConf;
@@ -150,6 +152,9 @@ public class PinotTaskRestletResource {
   private static final String TASK_QUEUE_STATE_RESUME = "RESUME";
   public static final String GENERATION_ERRORS_KEY = "generationErrors";
   public static final String SCHEDULING_ERRORS_KEY = "schedulingErrors";
+  private static final TypeReference<Map<String, String>> STRING_MAP_TYPE_REFERENCE =
+      new TypeReference<Map<String, String>>() {
+      };
 
   @Inject
   PinotHelixTaskResourceManager _pinotHelixTaskResourceManager;
@@ -701,6 +706,13 @@ public class PinotTaskRestletResource {
   public void executeAdhocTask(AdhocTaskConfig adhocTaskConfig, @Suspended AsyncResponse asyncResponse,
       @Context Request requestContext) {
     try {
+      if (adhocTaskConfig.isDryRun()) {
+        MinionTaskDryRunResponse dryRunResponse =
+            _pinotTaskManager.dryRunTask(adhocTaskConfig.getTaskType(), adhocTaskConfig.getTableName(),
+                adhocTaskConfig.getTaskConfigs());
+        asyncResponse.resume(dryRunResponse);
+        return;
+      }
       asyncResponse.resume(_pinotTaskManager.createTask(adhocTaskConfig.getTaskType(), adhocTaskConfig.getTableName(),
           adhocTaskConfig.getTaskName(), adhocTaskConfig.getTaskConfigs()));
     } catch (TableNotFoundException e) {
@@ -719,6 +731,56 @@ public class PinotTaskRestletResource {
     } catch (Exception e) {
       throw new ControllerApplicationException(LOGGER,
           "Failed to create adhoc task: " + ExceptionUtils.getStackTrace(e), Response.Status.INTERNAL_SERVER_ERROR, e);
+    }
+  }
+
+  @POST
+  @ManagedAsync
+  @Produces(MediaType.APPLICATION_JSON)
+  @Path("/tasks/{taskType}/{tableName}/dryRun")
+  @Authorize(targetType = TargetType.CLUSTER, action = Actions.Cluster.EXECUTE_TASK)
+  @Authenticate(AccessType.CREATE)
+  @ApiOperation("Dry run a minion task for a given table")
+  public void dryRunTask(
+      @ApiParam(value = "Task type", required = true) @PathParam("taskType") String taskType,
+      @ApiParam(value = "Table name (with type suffix)", required = true) @PathParam("tableName") String tableName,
+      @ApiParam(value = "Whether to include verbose dry run output") @DefaultValue("false")
+      @QueryParam("verbose") boolean verbose,
+      String rawTaskConfigs, @Suspended AsyncResponse asyncResponse, @Context HttpHeaders headers) {
+    try {
+      Map<String, String> taskConfigs = new HashMap<>();
+      if (StringUtils.isNotBlank(rawTaskConfigs)) {
+        Map<String, String> parsedTaskConfigs = JsonUtils.stringToObject(rawTaskConfigs, STRING_MAP_TYPE_REFERENCE);
+        if (parsedTaskConfigs != null) {
+          taskConfigs.putAll(parsedTaskConfigs);
+        }
+      }
+      PinotTaskGenerator.DryRunOptions dryRunOptions = PinotTaskGenerator.DryRunOptions.builder()
+          .setVerbose(verbose).build();
+      String translatedTableName = DatabaseUtils.translateTableName(tableName, headers);
+      MinionTaskDryRunResponse dryRunResponse =
+          _pinotTaskManager.dryRunTask(taskType, translatedTableName, taskConfigs, dryRunOptions);
+      List<MinionTaskDryRunResponse.TableTaskDryRunResult> tableResults =
+          dryRunResponse.getTableTaskDryRunResults();
+      if (tableResults.isEmpty()) {
+        asyncResponse.resume(Response.status(Response.Status.NO_CONTENT).build());
+      } else if (tableResults.size() == 1) {
+        asyncResponse.resume(tableResults.get(0));
+      } else {
+        asyncResponse.resume(dryRunResponse);
+      }
+    } catch (TableNotFoundException e) {
+      throw new ControllerApplicationException(LOGGER, "Failed to find table: " + tableName,
+          Response.Status.NOT_FOUND, e);
+    } catch (UnknownTaskTypeException e) {
+      throw new ControllerApplicationException(LOGGER, "Unknown task type: " + taskType,
+          Response.Status.NOT_FOUND, e);
+    } catch (JsonProcessingException e) {
+      throw new ControllerApplicationException(LOGGER, "Failed to parse task configs: " + e.getOriginalMessage(),
+          Response.Status.BAD_REQUEST, e);
+    } catch (Exception e) {
+      throw new ControllerApplicationException(LOGGER,
+          "Failed to dry run task: " + ExceptionUtils.getStackTrace(e), Response.Status.INTERNAL_SERVER_ERROR, e);
     }
   }
 

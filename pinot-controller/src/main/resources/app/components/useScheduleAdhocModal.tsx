@@ -17,11 +17,12 @@
  * under the License.
  */
 
-import React, { useState } from 'react';
-import { DialogContent, makeStyles } from '@material-ui/core';
+import React, { useContext, useState } from 'react';
+import { DialogContent, FormControlLabel, Switch, makeStyles } from '@material-ui/core';
 import { UnControlled as CodeMirror } from 'react-codemirror2';
 import Dialog from './CustomDialog';
 import PinotMethodUtils from '../utils/PinotMethodUtils';
+import { NotificationContext } from './Notification/NotificationContext';
 
 const jsonoptions = {
   lineNumbers: true,
@@ -42,13 +43,64 @@ export default function useScheduleAdhocModal() {
   const classes = useStyles();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(`{}`);
+  const [isDryRun, setIsDryRun] = useState(false);
+  const { dispatch: notify } = useContext(NotificationContext);
 
-  const handleClose = () => setOpen(false);
-  const handleOpen = () => setOpen(true);
+  const handleClose = () => {
+    setIsDryRun(false);
+    setOpen(false);
+  };
+  const handleOpen = () => {
+    setIsDryRun(false);
+    setOpen(true);
+  };
 
   const handleSheduleAdhoc = async () => {
-    const res = await PinotMethodUtils.executeTaskAction(value);
-    handleClose();
+    let payload = {};
+    try {
+      if (value && value.trim()) {
+        payload = JSON.parse(value);
+      }
+    } catch (error) {
+      notify({
+        type: 'error',
+        message: 'Invalid JSON payload. Please fix the task definition and try again.',
+        show: true
+      });
+      return;
+    }
+
+    if (payload === null || Array.isArray(payload) || typeof payload !== 'object') {
+      notify({
+        type: 'error',
+        message: 'Task payload must be a JSON object.',
+        show: true
+      });
+      return;
+    }
+
+    if (isDryRun) {
+      payload.dryRun = true;
+    } else if (payload.dryRun) {
+      delete payload.dryRun;
+    }
+
+    try {
+      await PinotMethodUtils.executeTaskAction(payload);
+      notify({
+        type: 'success',
+        message: isDryRun ? 'Dry run executed successfully.' : 'Adhoc task scheduled successfully.',
+        show: true
+      });
+      handleClose();
+    } catch (error) {
+      const message = error?.response?.data || error?.message || 'Failed to execute task.';
+      notify({
+        type: 'error',
+        message,
+        show: true
+      });
+    }
   };
 
   const dialog = (
@@ -62,6 +114,16 @@ export default function useScheduleAdhocModal() {
       disableEscapeKeyDown={true}
     >
       <DialogContent>
+        <FormControlLabel
+          control={
+            <Switch
+              color="primary"
+              checked={isDryRun}
+              onChange={(event) => setIsDryRun(event.target.checked)}
+            />
+          }
+          label="Dry run mode"
+        />
         <CodeMirror
           options={jsonoptions}
           value={value}

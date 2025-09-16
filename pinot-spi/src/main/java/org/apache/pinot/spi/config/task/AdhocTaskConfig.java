@@ -49,20 +49,15 @@ public class AdhocTaskConfig extends BaseJsonConfig {
   private String _tableName;
   private String _taskName;
   private Map<String, String> _taskConfigs;
+  private boolean _dryRun;
 
   @JsonCreator
   public AdhocTaskConfig(@JsonProperty(value = "taskType", required = true) String taskType,
       @JsonProperty(value = "tableName", required = true) String tableName,
       @JsonProperty(value = "taskName") @Nullable String taskName,
-      @JsonProperty("taskConfigs") @Nullable Map<String, String> taskConfigs) {
-    Preconditions.checkArgument(taskType != null, "'taskType' must be configured");
-    Preconditions.checkArgument(tableName != null, "'tableName' must be configured");
-    Preconditions.checkArgument(taskName == null || !taskName.contains("/"),
-        "'taskName' must not contain path separator '/'");
-    _taskType = taskType;
-    _tableName = tableName;
-    _taskName = taskName;
-    _taskConfigs = taskConfigs;
+      @JsonProperty("taskConfigs") @Nullable Map<String, String> taskConfigs,
+      @JsonProperty("dryRun") @Nullable Boolean dryRun) {
+    this(taskType, tableName, taskName, taskConfigs, dryRun != null && dryRun);
   }
 
   public String getTaskType() {
@@ -79,5 +74,27 @@ public class AdhocTaskConfig extends BaseJsonConfig {
 
   public Map<String, String> getTaskConfigs() {
     return _taskConfigs;
+  }
+
+  public boolean isDryRun() {
+    return _dryRun;
+  }
+
+  public AdhocTaskConfig(String taskType, String tableName, @Nullable String taskName,
+      @Nullable Map<String, String> taskConfigs) {
+    this(taskType, tableName, taskName, taskConfigs, false);
+  }
+
+  public AdhocTaskConfig(String taskType, String tableName, @Nullable String taskName,
+      @Nullable Map<String, String> taskConfigs, boolean dryRun) {
+    Preconditions.checkArgument(taskType != null, "'taskType' must be configured");
+    Preconditions.checkArgument(tableName != null, "'tableName' must be configured");
+    Preconditions.checkArgument(taskName == null || !taskName.contains("/"),
+        "'taskName' must not contain path separator '/'");
+    _taskType = taskType;
+    _tableName = tableName;
+    _taskName = taskName;
+    _taskConfigs = taskConfigs;
+    _dryRun = dryRun;
   }
 }

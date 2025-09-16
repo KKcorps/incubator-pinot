@@ -46,6 +46,7 @@ import org.apache.pinot.common.exception.TableNotFoundException;
 import org.apache.pinot.common.metrics.ControllerGauge;
 import org.apache.pinot.common.metrics.ControllerMeter;
 import org.apache.pinot.common.metrics.ControllerMetrics;
+import org.apache.pinot.common.minion.MinionTaskDryRunResponse;
 import org.apache.pinot.common.minion.TaskGeneratorMostRecentRunInfo;
 import org.apache.pinot.common.minion.TaskManagerStatusCache;
 import org.apache.pinot.controller.ControllerConf;
@@ -192,21 +193,7 @@ public class PinotTaskManager extends ControllerPeriodicTask<Void> {
       throw new TaskAlreadyExistsException(
           "Task [" + taskName + "] of type [" + taskType + "] is already created. Current state is " + taskState);
     }
-    List<String> tableNameWithTypes = new ArrayList<>();
-    if (TableNameBuilder.getTableTypeFromTableName(tableName) == null) {
-      String offlineTableName = TableNameBuilder.OFFLINE.tableNameWithType(tableName);
-      if (_pinotHelixResourceManager.hasOfflineTable(offlineTableName)) {
-        tableNameWithTypes.add(offlineTableName);
-      }
-      String realtimeTableName = TableNameBuilder.REALTIME.tableNameWithType(tableName);
-      if (_pinotHelixResourceManager.hasRealtimeTable(realtimeTableName)) {
-        tableNameWithTypes.add(realtimeTableName);
-      }
-    } else {
-      if (_pinotHelixResourceManager.hasTable(tableName)) {
-        tableNameWithTypes.add(tableName);
-      }
-    }
+    List<String> tableNameWithTypes = getExistingTableNamesWithType(tableName);
     if (tableNameWithTypes.isEmpty()) {
       throw new TableNotFoundException("'tableName' " + tableName + " is not found");
     }
@@ -217,6 +204,8 @@ public class PinotTaskManager extends ControllerPeriodicTask<Void> {
       throw new UnknownTaskTypeException(
           "Task type: " + taskType + " is not registered, cannot enable it for table: " + tableName);
     }
+    Map<String, String> baseTaskConfigs =
+        taskConfigs != null ? new HashMap<>(taskConfigs) : new HashMap<>();
     // responseMap holds the table to task name mapping.
     Map<String, String> responseMap = new HashMap<>();
     for (String tableNameWithType : tableNameWithTypes) {
@@ -237,9 +226,10 @@ public class PinotTaskManager extends ControllerPeriodicTask<Void> {
       // Update the task config with the triggeredBy information
       // This can be used by the generator to appropriately set the subtask configs
       // Example usage in BaseTaskGenerator.getNumSubTasks()
-      taskConfigs.put(MinionConstants.TRIGGERED_BY, CommonConstants.TaskTriggers.ADHOC_TRIGGER.name());
+      Map<String, String> generatorTaskConfigs = new HashMap<>(baseTaskConfigs);
+      generatorTaskConfigs.put(MinionConstants.TRIGGERED_BY, CommonConstants.TaskTriggers.ADHOC_TRIGGER.name());
 
-      List<PinotTaskConfig> pinotTaskConfigs = taskGenerator.generateTasks(tableConfig, taskConfigs);
+      List<PinotTaskConfig> pinotTaskConfigs = taskGenerator.generateTasks(tableConfig, generatorTaskConfigs);
       if (pinotTaskConfigs.isEmpty()) {
         LOGGER.warn("No ad-hoc task generated for task type: {}", taskType);
         continue;
@@ -271,12 +261,115 @@ public class PinotTaskManager extends ControllerPeriodicTask<Void> {
     return responseMap;
   }
 
+  public MinionTaskDryRunResponse dryRunTask(String taskType, String tableName,
+      @Nullable Map<String, String> taskConfigs)
+      throws Exception {
+    return dryRunTask(taskType, tableName, taskConfigs, PinotTaskGenerator.DryRunOptions.DEFAULT);
+  }
+
+  public MinionTaskDryRunResponse dryRunTask(String taskType, String tableName,
+      @Nullable Map<String, String> taskConfigs, PinotTaskGenerator.DryRunOptions dryRunOptions)
+      throws Exception {
+    List<String> tableNameWithTypes = getExistingTableNamesWithType(tableName);
+    if (tableNameWithTypes.isEmpty()) {
+      throw new TableNotFoundException("'tableName' " + tableName + " is not found");
+    }
+
+    PinotTaskGenerator taskGenerator = _taskGeneratorRegistry.getTaskGenerator(taskType);
+    if (taskGenerator == null) {
+      throw new UnknownTaskTypeException(
+          "Task type: " + taskType + " is not registered, cannot enable it for table: " + tableName);
+    }
+
+    Map<String, String> baseTaskConfigs =
+        taskConfigs != null ? new HashMap<>(taskConfigs) : new HashMap<>();
+    MinionTaskDryRunResponse dryRunResponse = new MinionTaskDryRunResponse(taskType);
+    dryRunResponse.putMetadata("mode", "dry-run");
+
+    for (String tableNameWithType : tableNameWithTypes) {
+      TableConfig tableConfig = _pinotHelixResourceManager.getTableConfig(tableNameWithType);
+      if (tableConfig == null) {
+        LOGGER.warn("Skipping dry run for task type: {} due to missing table config for table: {}", taskType,
+            tableNameWithType);
+        continue;
+      }
+      Map<String, String> generatorTaskConfigs = new HashMap<>(baseTaskConfigs);
+      generatorTaskConfigs.put(MinionConstants.TRIGGERED_BY, CommonConstants.TaskTriggers.ADHOC_TRIGGER.name());
+
+      MinionTaskDryRunResponse.TableTaskDryRunResult tableDryRunResult =
+          taskGenerator.dryRunTasks(tableConfig, generatorTaskConfigs, dryRunOptions);
+      if (tableDryRunResult.getTableNameWithType() == null) {
+        tableDryRunResult.setTableNameWithType(tableNameWithType);
+      }
+      tableDryRunResult.putMetadata("mode", "dry-run");
+
+      int maxNumberOfSubTasks = taskGenerator.getMaxAllowedSubTasksPerTask();
+      if (tableDryRunResult.getTotalTaskCount() > maxNumberOfSubTasks) {
+        String message = String.format(
+            "Number of tasks generated for task type: %s for table: %s is %d, which is greater than the "
+                + "maximum number of tasks to schedule: %d. This is "
+                + "controlled by the cluster config %s which is set based on controller's performance.", taskType,
+            tableName, tableDryRunResult.getTotalTaskCount(), maxNumberOfSubTasks,
+            MinionConstants.MAX_ALLOWED_SUB_TASKS_KEY);
+        message += "Optimise the task config or reduce tableMaxNumTasks to avoid the error";
+        throw new RuntimeException(message);
+      }
+
+      tableDryRunResult.getTaskDryRunResults().forEach(taskDryRunResult -> taskDryRunResult.getTaskConfig()
+          .putIfAbsent(MinionConstants.TRIGGERED_BY, CommonConstants.TaskTriggers.ADHOC_TRIGGER.name()));
+
+      if (!tableDryRunResult.getSummary().containsKey("taskCount")) {
+        tableDryRunResult.putSummaryValue("taskCount", tableDryRunResult.getTotalTaskCount());
+      }
+
+      try {
+        if (_resourceUtilizationManager.isResourceUtilizationWithinLimits(tableNameWithType,
+            UtilizationChecker.CheckPurpose.TASK_GENERATION) == UtilizationChecker.CheckResult.FAIL) {
+          String warning = String.format(
+              "Resource utilization is above threshold, task generation would be skipped for table: %s",
+              tableNameWithType);
+          LOGGER.warn(warning);
+          tableDryRunResult.addWarning(warning);
+        }
+      } catch (Exception e) {
+        String warning = String.format(
+            "Caught exception while checking resource utilization for table: %s. Error: %s", tableNameWithType,
+            e.getMessage());
+        LOGGER.warn(warning, e);
+        tableDryRunResult.addWarning(warning);
+      }
+
+      dryRunResponse.addTableResult(tableDryRunResult);
+    }
+
+    return dryRunResponse;
+  }
+
   private class ZkTableConfigChangeListener implements IZkChildListener {
 
     @Override
     public synchronized void handleChildChange(String path, List<String> tableNamesWithType) {
       checkTableConfigChanges(tableNamesWithType);
     }
+  }
+
+  private List<String> getExistingTableNamesWithType(String tableName) {
+    List<String> tableNameWithTypes = new ArrayList<>();
+    if (TableNameBuilder.getTableTypeFromTableName(tableName) == null) {
+      String offlineTableName = TableNameBuilder.OFFLINE.tableNameWithType(tableName);
+      if (_pinotHelixResourceManager.hasOfflineTable(offlineTableName)) {
+        tableNameWithTypes.add(offlineTableName);
+      }
+      String realtimeTableName = TableNameBuilder.REALTIME.tableNameWithType(tableName);
+      if (_pinotHelixResourceManager.hasRealtimeTable(realtimeTableName)) {
+        tableNameWithTypes.add(realtimeTableName);
+      }
+    } else {
+      if (_pinotHelixResourceManager.hasTable(tableName)) {
+        tableNameWithTypes.add(tableName);
+      }
+    }
+    return tableNameWithTypes;
   }
 
   private void checkTableConfigChanges(List<String> tableNamesWithType) {

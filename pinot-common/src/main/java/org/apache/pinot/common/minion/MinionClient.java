@@ -19,8 +19,10 @@
 package org.apache.pinot.common.minion;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.commons.io.IOUtils;
@@ -116,6 +118,8 @@ public class MinionClient {
 
   public Map<String, String> executeTask(AdhocTaskConfig adhocTaskConfig, @Nullable Map<String, String> headers)
       throws IOException, HttpException {
+    Preconditions.checkArgument(!adhocTaskConfig.isDryRun(),
+        "AdhocTaskConfig dry run flag is set. Use dryRunTask API instead.");
     HttpPost httpPost = createHttpPostRequest(MinionRequestURLBuilder.baseUrl(_controllerUrl).forTaskExecute());
     httpPost.setEntity(new StringEntity(adhocTaskConfig.toJsonString()));
     if (headers != null) {
@@ -131,6 +135,59 @@ public class MinionClient {
                 responseString));
       }
       return JsonUtils.stringToObject(responseString, TYPEREF_MAP_STRING_STRING);
+    }
+  }
+
+  public MinionTaskDryRunResponse dryRunTask(AdhocTaskConfig adhocTaskConfig,
+      @Nullable Map<String, String> headers)
+      throws IOException, HttpException {
+    Preconditions.checkArgument(adhocTaskConfig.isDryRun(),
+        "AdhocTaskConfig dry run flag must be set to true for dry runs.");
+    MinionTaskDryRunResponse.TableTaskDryRunResult tableResult =
+        dryRunTask(adhocTaskConfig.getTaskType(), adhocTaskConfig.getTableName(), adhocTaskConfig.getTaskConfigs(),
+            false, headers);
+    MinionTaskDryRunResponse dryRunResponse = new MinionTaskDryRunResponse(adhocTaskConfig.getTaskType());
+    dryRunResponse.putMetadata("mode", "dry-run");
+    dryRunResponse.addTableResult(tableResult);
+    return dryRunResponse;
+  }
+
+  public MinionTaskDryRunResponse.TableTaskDryRunResult dryRunTask(String taskType, String tableNameWithType,
+      @Nullable Map<String, String> taskConfigs)
+      throws IOException, HttpException {
+    return dryRunTask(taskType, tableNameWithType, taskConfigs, false);
+  }
+
+  public MinionTaskDryRunResponse.TableTaskDryRunResult dryRunTask(String taskType, String tableNameWithType,
+      @Nullable Map<String, String> taskConfigs, boolean verbose)
+      throws IOException, HttpException {
+    return dryRunTask(taskType, tableNameWithType, taskConfigs, verbose, null);
+  }
+
+  public MinionTaskDryRunResponse.TableTaskDryRunResult dryRunTask(String taskType, String tableNameWithType,
+      @Nullable Map<String, String> taskConfigs, boolean verbose, @Nullable Map<String, String> headers)
+      throws IOException, HttpException {
+    Preconditions.checkArgument(taskType != null, "'taskType' must be configured");
+    Preconditions.checkArgument(tableNameWithType != null, "'tableNameWithType' must be configured");
+    HttpPost httpPost = createHttpPostRequest(
+        MinionRequestURLBuilder.baseUrl(_controllerUrl).forTaskDryRun(taskType, tableNameWithType, verbose));
+    httpPost.setHeader("Content-Type", APPLICATION_JSON);
+    Map<String, String> configsToSend =
+        taskConfigs != null ? new HashMap<>(taskConfigs) : new HashMap<>();
+    httpPost.setEntity(new StringEntity(JsonUtils.objectToString(configsToSend), Charset.defaultCharset()));
+    if (headers != null) {
+      headers.remove("content-length");
+      headers.entrySet().forEach(entry -> httpPost.setHeader(entry.getKey(), entry.getValue()));
+    }
+    try (CloseableHttpResponse response = HTTP_CLIENT.execute(httpPost)) {
+      int statusCode = response.getCode();
+      final String responseString = IOUtils.toString(response.getEntity().getContent(), Charset.defaultCharset());
+      if (statusCode >= 400) {
+        throw new HttpException(
+            String.format("Unable to execute dry run for minion task. Error code %d, Error message: %s", statusCode,
+                responseString));
+      }
+      return JsonUtils.stringToObject(responseString, MinionTaskDryRunResponse.TableTaskDryRunResult.class);
     }
   }
 

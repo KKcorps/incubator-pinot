@@ -94,4 +94,12 @@ public class MinionRequestURLBuilder {
   public String forTaskExecute() {
     return StringUtil.join("/", _baseUrl, "tasks/execute");
   }
+
+  public String forTaskDryRun(String taskType, String tableNameWithType, boolean verbose) {
+    String url = StringUtil.join("/", _baseUrl, "tasks", taskType, tableNameWithType, "dryRun");
+    if (verbose) {
+      return url + "?verbose=true";
+    }
+    return url;
+  }
 }

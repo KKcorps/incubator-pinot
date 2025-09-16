@@ -40,6 +40,12 @@ public class AdhocTaskConfigTest {
     assertEquals(adhocTaskConfig.getTaskName(), "myTask-0");
     assertEquals(adhocTaskConfig.getTaskConfigs().size(), 1);
     assertEquals(adhocTaskConfig.getTaskConfigs().get("inputDirURI"), "s3://my-bucket/my-file.json");
+    assertEquals(adhocTaskConfig.isDryRun(), false);
+
+    AdhocTaskConfig dryRunTaskConfig =
+        new AdhocTaskConfig("SegmentGenerationAndPushTask", "myTable", "myTask-0",
+            ImmutableMap.of("inputDirURI", "s3://my-bucket/my-file.json"), true);
+    assertEquals(dryRunTaskConfig.isDryRun(), true);
   }
 
   @Test

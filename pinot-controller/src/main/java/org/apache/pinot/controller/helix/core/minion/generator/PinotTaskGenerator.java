@@ -18,9 +18,13 @@
  */
 package org.apache.pinot.controller.helix.core.minion.generator;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.helix.task.JobConfig;
+import org.apache.pinot.common.minion.MinionTaskDryRunResponse;
 import org.apache.pinot.controller.helix.core.minion.ClusterInfoAccessor;
 import org.apache.pinot.core.common.MinionConstants;
 import org.apache.pinot.core.minion.PinotTaskConfig;
@@ -122,5 +126,89 @@ public interface PinotTaskGenerator {
    * @param taskConfigs The task type specific task configuration to be validated.
    */
   default void validateTaskConfigs(TableConfig tableConfig, Schema schema, Map<String, String> taskConfigs) {
+  }
+
+  /**
+   * Performs a dry run for the task type using the provided table and task configs.
+   * Implementations can override this method to add more context such as warnings or
+   * task specific metadata to the response.
+   */
+  default MinionTaskDryRunResponse.TableTaskDryRunResult dryRunTasks(TableConfig tableConfig,
+      Map<String, String> taskConfigs) throws Exception {
+    return dryRunTasks(tableConfig, taskConfigs, DryRunOptions.DEFAULT);
+  }
+
+  /**
+   * Performs a dry run for the task type using the provided table and task configs and optional dry run options.
+   * Implementations can override this method to add more context such as warnings or
+   * task specific metadata to the response.
+   */
+  default MinionTaskDryRunResponse.TableTaskDryRunResult dryRunTasks(TableConfig tableConfig,
+      Map<String, String> taskConfigs, DryRunOptions dryRunOptions) throws Exception {
+    Map<String, String> configsToUse = taskConfigs != null ? taskConfigs : Collections.emptyMap();
+    List<PinotTaskConfig> pinotTaskConfigs = generateTasks(tableConfig, configsToUse);
+    List<MinionTaskDryRunResponse.SubtaskDryRunResult> subTaskResults = new ArrayList<>(pinotTaskConfigs.size());
+    for (PinotTaskConfig pinotTaskConfig : pinotTaskConfigs) {
+      subTaskResults.add(new MinionTaskDryRunResponse.SubtaskDryRunResult(new HashMap<>(pinotTaskConfig.getConfigs())));
+    }
+    MinionTaskDryRunResponse.TableTaskDryRunResult dryRunResult =
+        new MinionTaskDryRunResponse.TableTaskDryRunResult(tableConfig.getTableName(), subTaskResults);
+    dryRunResult.putSummaryValue("taskCount", dryRunResult.getTotalTaskCount());
+    if (dryRunOptions.isVerbose()) {
+      dryRunResult.putMetadata("verbose", true);
+    }
+    return dryRunResult;
+  }
+
+  /**
+   * Encapsulates optional arguments for dry run execution.
+   */
+  class DryRunOptions {
+    public static final DryRunOptions DEFAULT = DryRunOptions.builder().build();
+
+    private final boolean _verbose;
+    private final Map<String, Object> _properties;
+
+    private DryRunOptions(boolean verbose, Map<String, Object> properties) {
+      _verbose = verbose;
+      _properties = properties;
+    }
+
+    public boolean isVerbose() {
+      return _verbose;
+    }
+
+    public Map<String, Object> getProperties() {
+      return _properties;
+    }
+
+    public Object getProperty(String key) {
+      return _properties.get(key);
+    }
+
+    public static Builder builder() {
+      return new Builder();
+    }
+
+    public static final class Builder {
+      private boolean _verbose;
+      private final Map<String, Object> _properties = new HashMap<>();
+
+      public Builder setVerbose(boolean verbose) {
+        _verbose = verbose;
+        return this;
+      }
+
+      public Builder putProperty(String key, Object value) {
+        if (key != null && value != null) {
+          _properties.put(key, value);
+        }
+        return this;
+      }
+
+      public DryRunOptions build() {
+        return new DryRunOptions(_verbose, Collections.unmodifiableMap(new HashMap<>(_properties)));
+      }
+    }
   }
 }

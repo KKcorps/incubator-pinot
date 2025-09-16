@@ -50,6 +50,7 @@ import org.apache.pinot.tools.admin.command.OfflineSegmentIntervalCheckerCommand
 import org.apache.pinot.tools.admin.command.OperateClusterConfigCommand;
 import org.apache.pinot.tools.admin.command.PostQueryCommand;
 import org.apache.pinot.tools.admin.command.QuickStartCommand;
+import org.apache.pinot.tools.admin.command.RealtimeIngestionLogAnalyzerCommand;
 import org.apache.pinot.tools.admin.command.RealtimeProvisioningHelperCommand;
 import org.apache.pinot.tools.admin.command.RebalanceTableCommand;
 import org.apache.pinot.tools.admin.command.SegmentProcessorFrameworkCommand;
@@ -133,6 +134,7 @@ public class PinotAdministrator {
     SUBCOMMAND_MAP.put("ConvertPinotSegment", new PinotSegmentConvertCommand());
     SUBCOMMAND_MAP.put("MoveReplicaGroup", new MoveReplicaGroup());
     SUBCOMMAND_MAP.put("VerifyClusterState", new VerifyClusterStateCommand());
+    SUBCOMMAND_MAP.put("RealtimeIngestionLogAnalyzer", new RealtimeIngestionLogAnalyzerCommand());
     SUBCOMMAND_MAP.put("RealtimeProvisioningHelper", new RealtimeProvisioningHelperCommand());
     SUBCOMMAND_MAP.put("CheckOfflineSegmentIntervals", new OfflineSegmentIntervalCheckerCommand());
     SUBCOMMAND_MAP.put("AnonymizeData", new AnonymizeDataCommand());

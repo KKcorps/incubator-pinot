@@ -1334,6 +1334,18 @@ public class CommonConstants {
         "pinot.server.messagesCount.refreshIntervalSeconds";
     public static final int DEFAULT_MESSAGES_COUNT_REFRESH_INTERVAL_SECONDS = 30;
 
+    // Re-ingestion related configs
+    public static final String CONFIG_OF_MAX_PARALLEL_REINGESTIONS =
+        "pinot.server.reingestion.maxParallel";
+    public static final int DEFAULT_MAX_PARALLEL_REINGESTIONS =
+        Math.max(Runtime.getRuntime().availableProcessors() / 2, 1);
+    public static final String CONFIG_OF_REINGESTION_CONSUMPTION_END_TIMEOUT_MS =
+        "pinot.server.reingestion.consumptionEndTimeoutMs";
+    public static final long DEFAULT_REINGESTION_CONSUMPTION_END_TIMEOUT_MS = 1_800_000L; // 30 minutes
+    public static final String CONFIG_OF_REINGESTION_CHECK_INTERVAL_MS =
+        "pinot.server.reingestion.checkIntervalMs";
+    public static final long DEFAULT_REINGESTION_CHECK_INTERVAL_MS = 5_000L; // 5 seconds
+
     public static class SegmentCompletionProtocol {
       public static final String PREFIX_OF_CONFIG_OF_SEGMENT_UPLOADER = "pinot.server.segment.uploader";
 

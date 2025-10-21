@@ -41,6 +41,7 @@
   - [Apache Pinot YouTube Channel](#apache-pinot-youtube-channel)
   - [Building Pinot](#building-pinot)
   - [Deploying Pinot to Kubernetes](#deploying-pinot-to-kubernetes)
+  - [Pinot CLI](#pinot-cli)
   - [Join the Community](#join-the-community)
   - [Documentation](#documentation)
   - [License](#license)
@@ -171,6 +172,30 @@ If you encounter issues, check that the `protoc-gen-grpc-java` binary is present
 
 ## Deploying Pinot to Kubernetes
 Please refer to [Running Pinot on Kubernetes](https://docs.pinot.apache.org/basics/getting-started/kubernetes-quickstart) in our project documentation. Pinot also provides Kubernetes integrations with the interactive query engine, [Trino](https://docs.pinot.apache.org/integrations/trino) [Presto](https://docs.pinot.apache.org/integrations/presto), and the data visualization tool, [Apache Superset](helm/superset.yaml).
+
+## Pinot CLI
+Pinot provides a simple command line interface built on Node.js. The CLI lives in the `pinot-cli` directory. Install its dependencies and initialize the connection to your Pinot controller:
+
+```bash
+cd pinot-cli
+npm install
+node bin/pinot-cli.js init
+```
+
+The init command stores the controller URL and optional auth token in `~/.pinot-cli.json`. Running `pinot-cli` with no arguments launches an interactive menu offering the following tools:
+
+1. Init config
+2. Health check
+3. List tables
+4. Describe table
+5. Create table
+6. Delete table
+7. List schemas
+8. Add schema
+9. Run query
+10. List segments
+11. Reload table
+12. Exit
 
 ## Join the Community
  - Ask questions on [Apache Pinot Slack](https://join.slack.com/t/apache-pinot/shared_invite/zt-5z7pav2f-yYtjZdVA~EDmrGkho87Vzw)

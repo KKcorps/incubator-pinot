@@ -1092,6 +1092,46 @@ const repairTableOp = (tableName, tableType) => {
     return response.data;
   });
 };
+
+// Duplicate a table by fetching the table and schema config, renaming them and
+// saving as new resources
+const duplicateTableOp = async (tableName: string, newTableName: string) => {
+  try {
+    const [tableDetails, schemaDetails] = await Promise.all([
+      getTableDetails(tableName),
+      getTableSchemaData(tableName)
+    ]);
+
+    if ((tableDetails as any).error) {
+      return { error: (tableDetails as any).error };
+    }
+    if ((schemaDetails as any).error) {
+      return { error: (schemaDetails as any).error };
+    }
+
+    const tableConfig = (tableDetails as any).OFFLINE || (tableDetails as any).REALTIME || tableDetails;
+
+    const newTableConfig = {
+      ...tableConfig,
+      tableName: newTableName,
+      segmentsConfig: {
+        ...tableConfig.segmentsConfig,
+        schemaName: newTableName
+      }
+    };
+
+    const newSchemaConfig = { ...(schemaDetails as any), schemaName: newTableName };
+
+    const schemaResp = await saveSchemaAction(JSON.stringify(newSchemaConfig));
+    if ((schemaResp as any).error) {
+      return { error: (schemaResp as any).error };
+    }
+
+    return await saveTableAction(JSON.stringify(newTableConfig));
+  } catch (error) {
+    return { error: error.toString() };
+  }
+};
 const validateSchemaAction = (schemaObj) => {
   return validateSchema(schemaObj).then((response)=>{
     return response.data;
@@ -1441,6 +1481,7 @@ export default {
   rebalanceServersForTableOp,
   rebalanceBrokersForTableOp,
   repairTableOp,
+  duplicateTableOp,
   validateSchemaAction,
   validateTableAction,
   saveSchemaAction,

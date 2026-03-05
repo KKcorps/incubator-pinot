@@ -781,6 +781,15 @@ public final class TableConfigUtils {
 
     boolean isUpsertEnabled = tableConfig.getUpsertMode() != UpsertConfig.Mode.NONE;
     boolean isDedupEnabled = tableConfig.getDedupConfig() != null && tableConfig.getDedupConfig().isDedupEnabled();
+    boolean isPartialUpsertEnabled = tableConfig.getUpsertMode() == UpsertConfig.Mode.PARTIAL;
+
+    IngestionConfig ingestionConfig = tableConfig.getIngestionConfig();
+    StreamIngestionConfig streamIngestionConfig = ingestionConfig != null ? ingestionConfig.getStreamIngestionConfig()
+        : null;
+    if ((isPartialUpsertEnabled || isDedupEnabled) && streamIngestionConfig != null) {
+      Preconditions.checkState(streamIngestionConfig.isEnforceConsumptionInOrder(),
+          "enforceConsumptionInOrder must be enabled for partial upsert or dedup table");
+    }
 
     // check both upsert and dedup are not enabled simultaneously
     Preconditions.checkState(!(isUpsertEnabled && isDedupEnabled),

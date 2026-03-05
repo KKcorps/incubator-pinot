@@ -2705,6 +2705,45 @@ public class TableConfigUtilsTest {
   }
 
   @Test
+  public void testValidateEnforceConsumptionInOrderForPartialUpsertAndDedup() {
+    Schema schema = new Schema.SchemaBuilder().setSchemaName(TABLE_NAME)
+        .setPrimaryKeyColumns(Lists.newArrayList("myPkCol"))
+        .addSingleValueDimension("myCol", FieldSpec.DataType.STRING)
+        .addSingleValueDimension("myPkCol", FieldSpec.DataType.STRING)
+        .build();
+    Map<String, String> streamConfigs = getStreamConfigs();
+
+    IngestionConfig ingestionConfig = new IngestionConfig();
+    StreamIngestionConfig streamIngestionConfig = new StreamIngestionConfig(Collections.singletonList(streamConfigs));
+    streamIngestionConfig.setEnforceConsumptionInOrder(false);
+    ingestionConfig.setStreamIngestionConfig(streamIngestionConfig);
+
+    TableConfig partialUpsertTableConfig = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
+        .setUpsertConfig(new UpsertConfig(UpsertConfig.Mode.PARTIAL))
+        .setRoutingConfig(
+            new RoutingConfig(null, null, RoutingConfig.STRICT_REPLICA_GROUP_INSTANCE_SELECTOR_TYPE, false))
+        .setIngestionConfig(ingestionConfig)
+        .build();
+    IllegalStateException e = expectThrows(IllegalStateException.class,
+        () -> TableConfigUtils.validateUpsertAndDedupConfig(partialUpsertTableConfig, schema));
+    assertEquals(e.getMessage(), "enforceConsumptionInOrder must be enabled for partial upsert or dedup table");
+
+    TableConfig dedupTableConfig = new TableConfigBuilder(TableType.REALTIME).setTableName(TABLE_NAME)
+        .setDedupConfig(new DedupConfig(true, null))
+        .setRoutingConfig(
+            new RoutingConfig(null, null, RoutingConfig.STRICT_REPLICA_GROUP_INSTANCE_SELECTOR_TYPE, false))
+        .setIngestionConfig(ingestionConfig)
+        .build();
+    e = expectThrows(IllegalStateException.class,
+        () -> TableConfigUtils.validateUpsertAndDedupConfig(dedupTableConfig, schema));
+    assertEquals(e.getMessage(), "enforceConsumptionInOrder must be enabled for partial upsert or dedup table");
+
+    streamIngestionConfig.setEnforceConsumptionInOrder(true);
+    TableConfigUtils.validateUpsertAndDedupConfig(partialUpsertTableConfig, schema);
+    TableConfigUtils.validateUpsertAndDedupConfig(dedupTableConfig, schema);
+  }
+
+  @Test
   public void testValidatePartialUpsertConfig() {
     Schema schema = new Schema.SchemaBuilder().setSchemaName(TABLE_NAME)
         .addSingleValueDimension("myCol1", FieldSpec.DataType.LONG)

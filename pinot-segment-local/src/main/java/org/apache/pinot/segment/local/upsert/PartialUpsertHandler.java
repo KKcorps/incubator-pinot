@@ -48,8 +48,12 @@ public class PartialUpsertHandler {
   private final List<String> _primaryKeyColumns;
   private final List<String> _comparisonColumns;
   private final PartialUpsertMerger _partialUpsertMerger;
+  /// One handler is shared by every partition of a table, and merges are only serialized per primary key within a
+  /// partition. Record transformers keep reusable scratch state (for example the argument array in each
+  /// InbuiltFunctionEvaluator function node), so each thread needs its own chain. Sharing one chain lets a thread
+  /// evaluate a transform against another thread's column values.
   @Nullable
-  private final List<RecordTransformer> _postUpdateTransformers;
+  private final ThreadLocal<List<RecordTransformer>> _postUpdateTransformers;
 
   private final Map<String, Object> _defaultNullValues = new HashMap<>();
 
@@ -59,7 +63,9 @@ public class PartialUpsertHandler {
     _comparisonColumns = comparisonColumns;
     _partialUpsertMerger =
         PartialUpsertMergerFactory.getPartialUpsertMerger(_primaryKeyColumns, comparisonColumns, upsertConfig);
-    _postUpdateTransformers = RecordTransformerUtils.getPostPartialUpsertTransformers(tableConfig, schema);
+    _postUpdateTransformers = RecordTransformerUtils.getPostPartialUpsertTransformers(tableConfig, schema) != null
+        ? ThreadLocal.withInitial(() -> RecordTransformerUtils.getPostPartialUpsertTransformers(tableConfig, schema))
+        : null;
     // cache default null values to handle null merger results
     for (Map.Entry<String, FieldSpec> entry : schema.getFieldSpecMap().entrySet()) {
       String column = entry.getKey();
@@ -94,7 +100,7 @@ public class PartialUpsertHandler {
     }
 
     if (_postUpdateTransformers != null) {
-      for (RecordTransformer transformer : _postUpdateTransformers) {
+      for (RecordTransformer transformer : _postUpdateTransformers.get()) {
         transformer.transform(newRow);
       }
     }
